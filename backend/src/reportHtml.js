@@ -47,8 +47,23 @@ function step(n, title, body) {
 
 function overviewBody(it) {
   const sev = String(it.severity || '').toLowerCase()
-  const meta = `<div class="ov-meta"><span>위험도 <b style="color:${sevColor(sev)}">${esc(SEV_KO[sev] || it.severity || '-')}</b></span>${it.category ? `<span>분류 <b>${esc(it.category)}</b></span>` : ''}${it.scoreImpact != null ? `<span>점수 개선 <b style="color:#15803d">+${fmtImpact(it.scoreImpact)}</b></span>` : ''}</div>`
-  return meta + (it.sscDesc ? `<p>${esc(it.sscDesc)}</p>` : '')
+  const ov = it.overview || {}
+  const parts = []
+  parts.push(`<div class="ov-meta"><span>Issue Type <b>${esc(ov.displayName || it.name)}</b></span><span>유형 키 <b>${esc(it.key)}</b></span></div>`)
+  const chips = [`<span class="chip">항목: ${esc(it.name)}</span>`, `<span class="chip" style="background:${sevColor(sev)}1a;color:${sevColor(sev)}">위험도: ${esc(SEV_KO[sev] || it.severity || '-')}</span>`]
+  if (it.category) chips.push(`<span class="chip">분류: ${esc(it.category)}</span>`)
+  if (ov.difficulty) chips.push(`<span class="chip">조치 난이도: ${esc(ov.difficulty)}</span>`)
+  if (ov.impact) chips.push(`<span class="chip">서비스 영향: ${esc(ov.impact)}</span>`)
+  if (it.scoreImpact != null) chips.push(`<span class="chip">점수 개선: +${fmtImpact(it.scoreImpact)}</span>`)
+  parts.push(`<div class="mini-t">무엇이 왜 문제인가요</div><div class="chips">${chips.join('')}</div>`)
+  parts.push(`<p>${esc(ov.why || it.sscDesc || '해당 유형에 대한 설명을 준비 중입니다.')}</p>`)
+  if (ov.why && it.sscDesc) parts.push(`<div class="block"><div class="block-t">SecurityScorecard 설명</div><p class="muted">${esc(it.sscDesc)}</p></div>`)
+  const comp = ov.compliance
+  if (comp && ((comp.areas && comp.areas.length) || (comp.frameworks && comp.frameworks.length))) {
+    const fw = (comp.frameworks || []).map((f) => `<li><b>${esc(f.name)}</b>${f.clause ? ` · ${esc(f.clause)}` : ''}</li>`).join('')
+    parts.push(`<div class="mini-t">관련 컴플라이언스 <span class="cnote">(참고 · 감사 판정 아님)</span></div>${comp.areas && comp.areas.length ? `<p class="muted">통제 영역: ${comp.areas.map(esc).join(' · ')}</p>` : ''}${fw ? `<ul class="fw">${fw}</ul>` : ''}`)
+  }
+  return parts.join('')
 }
 
 function fixBody(it) {
@@ -155,7 +170,7 @@ export function buildReportHtml(d) {
   const items = d.items || []
   const gc = gradeColor(d.score)
   // 전역 페이지 순서(버튼 페이징) — 표지·요약·우선순위·각 항목.
-  const order = ['__cover__', '__exec__', '__overview__', ...items.map((it) => it.key)]
+  const order = ['__cover__', '__summary__', ...items.map((it) => it.key)]
   const orderJson = JSON.stringify(order)
   const pager = (key) => {
     const i = order.indexOf(key)
@@ -271,6 +286,12 @@ table.pri tr[data-goto]:hover td.go{color:#a8863f}
 .dl.del{background:#fef2f2;color:#b91c1c}
 .dl.ctx{color:#64748b}
 .mini-t{font-size:13.5px;font-weight:700;color:#0F2038;margin:16px 0 6px}
+.cnote{font-weight:400;font-size:11.5px;color:#94a3b8}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+.chip{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0}
+.fw{margin:4px 0 6px;padding-left:20px}
+.fw li{margin:3px 0;color:#334155;font-size:13px}
+.fw li b{color:#0F2038}
 .where{margin:4px 0 6px;padding-left:20px}
 .where li{margin:3px 0;color:#334155}
 .eng{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin:8px 0}
@@ -308,8 +329,8 @@ table.diff tr.changed{background:#fafcff}
   .wrap{max-width:100%;padding:0}
   #masthead{display:flex !important;min-height:auto;height:100vh;break-after:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #masthead::before,#masthead::after,.mast-globe{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  #execpage,#overview,#detail{display:block !important;padding:0}
-  #execpage,#overview{break-after:page}
+  #summary,#detail{display:block !important;padding:0}
+  #summary{break-after:page}
   table.pri td.go{display:none}
   .item{display:block !important;break-before:page}
   .pager,.mast-cta{display:none}
@@ -334,11 +355,11 @@ table.diff tr.changed{background:#fafcff}
       </div>
     </div>
     <div class="mast-foot">Powering Security Ratings · Driving Risk Management</div>
-    <div class="mast-cta"><button class="nx" data-goto="__exec__">리포트 시작 →</button></div>
+    <div class="mast-cta"><button class="nx" data-goto="__summary__">리포트 시작 →</button></div>
   </div>
 </section>
 <div class="wrap">
-  <section class="pg" id="execpage">
+  <section class="pg" id="summary">
     <div class="exec">
       <div class="exec-eyebrow">Executive Summary · 요약</div>
       <div class="exec-grid">
@@ -355,12 +376,8 @@ table.diff tr.changed{background:#fafcff}
           <div><b>${items.filter((it) => it.kind === 'guide').length}</b><span>조치 가이드</span></div>
         </div>
       </div>
-      <p class="exec-desc">${esc(d.customer)}(${esc(d.shownDomain || d.domain)})에 대한 SecurityScorecard 외부 보안 평가 결과 총 <b>${items.length}개 유형</b>의 리스크가 확인되었습니다. 다음 페이지의 조치 우선순위는 <b>위험도와 점수 개선 효과</b> 순으로 정렬되어 있으며, 각 유형은 파트너 검증랩 재현 증적 또는 조치 가이드로 제공됩니다.</p>
+      <p class="exec-desc">${esc(d.customer)}(${esc(d.shownDomain || d.domain)})에 대한 SecurityScorecard 외부 보안 평가 결과 총 <b>${items.length}개 유형</b>의 리스크가 확인되었습니다. 아래 조치 우선순위는 <b>위험도와 점수 개선 효과</b> 순으로 정렬되어 있으며, 각 유형은 파트너 검증랩 재현 증적 또는 조치 가이드로 제공됩니다.</p>
     </div>
-    ${pager('__exec__')}
-  </section>
-
-  <section class="pg" id="overview">
     <div class="notice">파트너 표준 검증랩 증적은 귀사 운영환경의 조치 완료를 의미하지 않습니다. 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차를 통해 확인해야 합니다.</div>
     <div class="card">
       <h3>조치 우선순위</h3>
@@ -369,7 +386,7 @@ table.diff tr.changed{background:#fafcff}
         ? `<table class="pri"><thead><tr><th>문제 유형</th><th>위험도</th><th>점수 개선</th><th>전달 형태</th><th></th></tr></thead><tbody>${coverRows(items)}</tbody></table>`
         : '<p class="muted">수집된 SecurityScorecard 리스크가 없습니다.</p>'}
     </div>
-    ${pager('__overview__')}
+    ${pager('__summary__')}
   </section>
 
   <div id="detail">
@@ -381,16 +398,15 @@ table.diff tr.changed{background:#fafcff}
 <script>
 (function(){
   var order=${orderJson};
-  var masthead=document.getElementById('masthead'), execp=document.getElementById('execpage'), overview=document.getElementById('overview'), detail=document.getElementById('detail');
+  var masthead=document.getElementById('masthead'), summary=document.getElementById('summary'), detail=document.getElementById('detail');
   var items=Array.prototype.slice.call(document.querySelectorAll('.item'));
   var cur='__cover__';
-  function hideAll(){ [masthead,execp,overview,detail].forEach(function(e){ if(e) e.style.display='none'; }); items.forEach(function(s){ s.classList.remove('active'); }); }
+  function hideAll(){ [masthead,summary,detail].forEach(function(e){ if(e) e.style.display='none'; }); items.forEach(function(s){ s.classList.remove('active'); }); }
   function show(key){
     if(order.indexOf(key)<0) return;
     hideAll(); cur=key;
     if(key==='__cover__') masthead.style.display='';
-    else if(key==='__exec__') execp.style.display='';
-    else if(key==='__overview__') overview.style.display='';
+    else if(key==='__summary__') summary.style.display='';
     else { detail.style.display=''; var it=null; items.forEach(function(s){ if(s.getAttribute('data-key')===key) it=s; }); if(it) it.classList.add('active'); }
     window.scrollTo(0,0);
   }

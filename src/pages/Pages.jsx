@@ -44,7 +44,7 @@ import { fetchSharedPack, exportReportHtml, newShareFields, fetchUsers, apiCreat
 import { loadInterpretation, cachedInterpretation } from '../lib/interpret.js'
 import { catalogNameKo, factorNameKo, catalogEntry, canonicalIssueKey, catalogGroups, KO_SEVERITY } from '../data/sandboxCatalog.js'
 import { getRemediationGuide, GUIDE_ISSUE_TYPES, guideRowMeta } from '../data/remediationSteps.js'
-import { frameworksForCategory, complianceByIndustry } from '../data/compliance.js'
+import { frameworksForCategory, complianceByIndustry, complianceRefFor } from '../data/compliance.js'
 import { SscBackendImport, RiskFindingsRealPanel, IssueTypeSummary } from '../features/SscApi.jsx'
 import { ENABLE_DEV_MOCKS } from '../config/runtime.js'
 import { ValidationSandboxRealPanel, LabEvidenceView, LabEvidenceSteps, SecOverview, SecFix, SecVerifyCommands, SecWrap } from '../features/Lab.jsx'
@@ -1883,10 +1883,18 @@ export function DeliveryReportViewer({ custName, app }) {
         const it = t.issue_type
         names[it] = catalogNameKo(it)
         const eg = engineGuide(it)
+        const meta = guideRowMeta(it) || {}
+        const comp = complianceRefFor(it, meta.category)
         extras[it] = {
           whereToChange: catalogEntry(it)?.whereToChange || [],
           engines: eg?.applies ? eg.engines.map((e) => ({ name: e.name, lang: e.lang, snippet: e.snippet })) : [],
-          versionNote: eg?.applies ? eg.versionNote : null
+          versionNote: eg?.applies ? eg.versionNote : null,
+          displayName: meta.displayName || null,
+          difficulty: meta.difficulty || null,
+          impact: meta.impact || null,
+          category: meta.category || null,
+          why: meta.why || catalogEntry(it)?.why || null,
+          compliance: comp ? { areas: comp.areas || [], frameworks: (comp.frameworks || []).map((f) => ({ name: f.name, clause: f.clause })) } : null
         }
       }
       const { blob, filename } = await exportReportHtml(custName, names, extras)
