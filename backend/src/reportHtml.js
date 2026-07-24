@@ -123,16 +123,30 @@ function coverRows(items) {
   }).join('')
 }
 
-// 표지 배경 액센트 — 아주 약한 골드 폴리곤 라인(로고 헥사곤 모티프). 절제·정적.
-const ACCENT_SVG = '<svg class="mast-accent" viewBox="0 0 460 620" preserveAspectRatio="xMidYMid meet" aria-hidden="true">'
-  + '<g fill="none" stroke="#C9A66B">'
-  + '<polygon points="230,70 395,165 395,355 230,450 65,355 65,165" stroke-opacity="0.16" stroke-width="1"/>'
-  + '<polygon points="230,160 315,210 315,310 230,360 145,310 145,210" stroke-opacity="0.11" stroke-width="1"/>'
-  + '<line x1="230" y1="70" x2="230" y2="160" stroke-opacity="0.09"/><line x1="395" y1="165" x2="315" y2="210" stroke-opacity="0.09"/>'
-  + '<line x1="395" y1="355" x2="315" y2="310" stroke-opacity="0.09"/><line x1="65" y1="165" x2="145" y2="210" stroke-opacity="0.09"/>'
-  + '</g><g fill="#C9A66B" fill-opacity="0.45">'
-  + '<circle cx="230" cy="70" r="2.4"/><circle cx="395" cy="165" r="2.4"/><circle cx="395" cy="355" r="2.4"/><circle cx="230" cy="450" r="2.4"/><circle cx="65" cy="355" r="2.4"/><circle cx="65" cy="165" r="2.4"/>'
-  + '</g></svg>'
+// 표지 우측 그래픽 — 도트 월드(우측 집중, 좌측 페이드) + 골드 네트워크. 딥 네이비 위 프리미엄.
+function buildGlobe() {
+  let s = 20260724
+  const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff }
+  const W = 620, H = 760
+  let dots = ''
+  for (let i = 0; i < 1000; i++) {
+    const x = rnd() * W, y = rnd() * H
+    const pr = x / W
+    if (rnd() > pr * 0.92 + 0.04) continue
+    const gold = rnd() < 0.06
+    const blue = !gold && rnd() < 0.05
+    const op = (0.08 + rnd() * 0.32).toFixed(2)
+    const col = gold ? `rgba(201,166,107,${op})` : blue ? `rgba(120,170,230,${(+op + 0.14).toFixed(2)})` : `rgba(150,178,214,${op})`
+    const r = (gold ? 1.5 : blue ? 1.8 : 0.9 + rnd() * 0.7).toFixed(1)
+    dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${col}"/>`
+  }
+  const pts = [[300, 120], [400, 78], [500, 158], [560, 120], [440, 220], [520, 285], [380, 300], [300, 235], [470, 360], [560, 420], [400, 435], [500, 520], [330, 470], [560, 560], [430, 610]]
+  const edges = [[0, 1], [1, 2], [2, 3], [0, 4], [1, 4], [4, 5], [4, 6], [6, 7], [0, 7], [5, 8], [8, 9], [6, 10], [10, 8], [9, 11], [10, 12], [8, 11], [11, 13], [10, 14]]
+  const net = edges.map(([a, b]) => `<line x1="${pts[a][0]}" y1="${pts[a][1]}" x2="${pts[b][0]}" y2="${pts[b][1]}"/>`).join('')
+  const nodes = pts.map(([x, y], i) => { const big = i % 3 === 0; return `<circle cx="${x}" cy="${y}" r="${big ? 3.2 : 2}" fill="#d8b56a"/>` + (big ? `<circle cx="${x}" cy="${y}" r="7.5" fill="none" stroke="rgba(201,166,107,.3)" stroke-width="1"/>` : '') }).join('')
+  return `<svg class="mast-globe" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${dots}<g stroke="rgba(201,166,107,.32)" stroke-width="1">${net}</g>${nodes}</svg>`
+}
+const GLOBE_SVG = buildGlobe()
 const LOGO_SVG = '<svg viewBox="0 0 48 48" width="42" height="42" aria-hidden="true"><path d="M24 3 L41.3 13 L41.3 35 L24 45 L6.7 35 L6.7 13 Z" fill="none" stroke="#C9A66B" stroke-width="2.2"/><path d="M24 14 L33 19.2 L33 29.6 L24 34.8 L15 29.6 L15 19.2 Z" fill="#C9A66B"/><circle cx="24" cy="24.4" r="3" fill="#071A2F"/></svg>'
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 function fmtDateEn(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso) || ''); if (!m) return String(iso || ''); return `${+m[3]} ${MONTHS_EN[+m[2] - 1]} ${m[1]}` }
@@ -168,15 +182,15 @@ body{margin:0;background:#f1f5f9;color:#0f172a;font-family:${fontStack};line-hei
 .masthead{position:relative;overflow:hidden;background:#071A2F;min-height:100vh;display:flex;flex-direction:column;color:#EAF0F7}
 .masthead::before{content:'';position:absolute;inset:0;background:radial-gradient(rgba(201,166,107,.06) 1px,transparent 1.5px) 0 0/30px 30px,linear-gradient(158deg,#0B2540 0%,#071A2F 55%,#04101E 100%);z-index:0}
 .masthead::after{content:'';position:absolute;inset:26px;border:1px solid rgba(201,166,107,.26);pointer-events:none;z-index:2}
-.mast-accent{position:absolute;top:12%;right:-4%;width:52%;height:76%;z-index:1;opacity:.9}
+.mast-globe{position:absolute;top:0;right:0;width:62%;height:100%;z-index:1}
 .mast-inner{position:relative;z-index:3;flex:1;display:flex;flex-direction:column;padding:9vh 9vw}
 .mast-logo{display:flex;align-items:center;gap:13px}
 .mast-logo .wm{display:flex;flex-direction:column;line-height:1.15}
 .mast-logo .wm b{font-size:17px;letter-spacing:.14em;font-weight:700;color:#EAF0F7}
 .mast-logo .wm span{font-size:12px;letter-spacing:.1em;color:#C9A66B}
 .mast-center{margin-top:auto}
-.mast-eyebrow{font-size:14px;letter-spacing:.34em;font-weight:600;color:#C9A66B;text-transform:uppercase}
-.mast-title{font-size:52px;line-height:1.12;font-weight:800;letter-spacing:-.01em;color:#F4F7FB;margin:18px 0 0}
+.mast-eyebrow{font-size:15px;letter-spacing:.32em;font-weight:600;color:#C9A66B;text-transform:uppercase;margin-top:16px}
+.mast-title{font-size:54px;line-height:1.06;font-weight:800;letter-spacing:-.01em;color:#F4F7FB;margin:0}
 .mast-rule{width:64px;height:2px;background:#C9A66B;margin:26px 0 22px}
 .mast-sub{font-size:18px;font-weight:500;letter-spacing:.02em;color:#9FB1C6}
 .mast-meta{margin-top:52px;display:flex;flex-direction:column;gap:5px}
@@ -184,7 +198,7 @@ body{margin:0;background:#f1f5f9;color:#0f172a;font-family:${fontStack};line-hei
 .mast-meta .md{font-size:15px;color:#C9A66B;letter-spacing:.02em}
 .mast-meta .mt{font-size:14px;color:#8598AE;letter-spacing:.06em}
 .mast-foot{margin-top:56px;padding-top:16px;border-top:1px solid rgba(201,166,107,.3);font-size:11px;letter-spacing:.22em;color:#7B8CA3;text-transform:uppercase}
-@media(max-width:640px){.mast-title{font-size:38px}.mast-inner{padding:7vh 34px}.mast-accent{opacity:.5}}
+@media(max-width:640px){.mast-title{font-size:38px}.mast-inner{padding:7vh 34px}.mast-globe{opacity:.5}}
 .pg{padding:22px 0}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:24px 0 6px}
 .pager .pgx{width:1px}
@@ -293,7 +307,7 @@ table.diff tr.changed{background:#fafcff}
   body{background:#fff}
   .wrap{max-width:100%;padding:0}
   #masthead{display:flex !important;min-height:auto;height:100vh;break-after:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  #masthead::before,#masthead::after,.mast-accent{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #masthead::before,#masthead::after,.mast-globe{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #execpage,#overview,#detail{display:block !important;padding:0}
   #execpage,#overview{break-after:page}
   table.pri td.go{display:none}
@@ -305,14 +319,14 @@ table.diff tr.changed{background:#fafcff}
 </head>
 <body>
 <section class="masthead" id="masthead">
-  ${ACCENT_SVG}
+  ${GLOBE_SVG}
   <div class="mast-inner">
-    <div class="mast-logo">${LOGO_SVG}<div class="wm"><b>SECURITYSCORECARD</b><span>파트너</span></div></div>
+    <div class="mast-logo">${LOGO_SVG}<div class="wm"><b>SECURITYSCORECARD</b><span>&amp; PINOLIKE</span></div></div>
     <div class="mast-center">
-      <div class="mast-eyebrow">Security Risk Assessment</div>
-      <h1 class="mast-title">보안 리스크<br/>평가 보고서</h1>
+      <h1 class="mast-title">보안 리스크 리포트</h1>
+      <div class="mast-eyebrow">Security Risk Report · ${esc(String(d.generatedAt).slice(0, 4))}</div>
       <div class="mast-rule"></div>
-      <div class="mast-sub">SecurityScorecard 기반 외부 보안 리스크 평가</div>
+      <div class="mast-sub">기업의 사이버 보안 리스크를 종합적으로 분석한<br/>SecurityScorecard 평가 결과 보고서입니다.</div>
       <div class="mast-meta">
         <div class="mc">${esc(d.customer)}</div>
         <div class="md">${esc(d.shownDomain || d.domain)}</div>
