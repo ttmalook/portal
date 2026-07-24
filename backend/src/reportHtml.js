@@ -15,52 +15,95 @@ function imgOrPlaceholder(dataUri, label, variant) {
   return `<figure class="shot shot-ph shot-${variant}"><div class="ph">증적 캡처<br/><span>${esc(label)}</span></div></figure>`
 }
 
+function fmtImpact(v) {
+  if (v == null) return null
+  const n = Math.round(Math.abs(Number(v)) * 10) / 10
+  return n < 0.1 ? '<0.1' : n.toFixed(1)
+}
+
 function diffTable(diff) {
   if (!Array.isArray(diff) || !diff.length) return ''
   const rows = diff.map((r) => `<tr class="${r.changed ? 'changed' : ''}"><td>${esc(r.key)}</td><td class="before">${esc(r.before)}</td><td class="after">${esc(r.after)}</td></tr>`).join('')
   return `<table class="diff"><thead><tr><th>관측 항목</th><th>조치 전</th><th>조치 후</th></tr></thead><tbody>${rows}</tbody></table>`
 }
 
+function sourceDiffHtml(sd) {
+  if (!sd || !Array.isArray(sd.lines) || !sd.lines.length) return ''
+  const rows = sd.lines.map((l) => {
+    const cls = l.t === 'add' ? 'add' : l.t === 'del' ? 'del' : 'ctx'
+    const pre = l.t === 'add' ? '+' : l.t === 'del' ? '−' : ' '
+    return `<div class="dl ${cls}">${esc(pre + ' ' + l.s)}</div>`
+  }).join('')
+  return `<div class="srcdiff"><div class="srcdiff-h">${esc(sd.label || sd.file || '설정 변경')}${sd.file && sd.label ? ` · ${esc(sd.file)}` : ''}</div>${rows}</div>`
+}
+
+function stepsList(steps) {
+  return Array.isArray(steps) && steps.length ? `<ol class="steps">${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''
+}
+
+function step(n, title, body) {
+  return body ? `<div class="step"><div class="step-h"><span class="step-n">${n}</span>${esc(title)}</div><div class="step-b">${body}</div></div>` : ''
+}
+
+function overviewBody(it) {
+  const sev = String(it.severity || '').toLowerCase()
+  const meta = `<div class="ov-meta"><span>위험도 <b style="color:${sevColor(sev)}">${esc(SEV_KO[sev] || it.severity || '-')}</b></span>${it.category ? `<span>분류 <b>${esc(it.category)}</b></span>` : ''}${it.scoreImpact != null ? `<span>점수 개선 <b style="color:#15803d">+${fmtImpact(it.scoreImpact)}</b></span>` : ''}</div>`
+  return meta + (it.sscDesc ? `<p>${esc(it.sscDesc)}</p>` : '')
+}
+
+function fixBody(it) {
+  const g = it.guide || {}
+  const parts = []
+  if (g.direction) parts.push(`<p>${esc(g.direction)}</p>`)
+  const sl = stepsList(g.steps); if (sl) parts.push(sl)
+  if (it.sourceDiff) parts.push(sourceDiffHtml(it.sourceDiff))
+  if (g.sscRec) parts.push(`<div class="block"><div class="block-t">SecurityScorecard 공식 권고</div><p>${esc(g.sscRec)}</p></div>`)
+  return parts.join('') || '<p class="muted">해당 유형의 표준 조치 방향을 준비 중입니다.</p>'
+}
+
 function labSection(it) {
   const ev = it.evidence || {}
-  return `
-    <div class="ba">
-      ${imgOrPlaceholder(ev.beforeImg, ev.beforeLabel || '조치 전', 'before')}
-      ${imgOrPlaceholder(ev.afterImg, ev.afterLabel || '조치 후', 'after')}
-    </div>
-    ${diffTable(ev.diff)}
-    ${ev.tool ? `<p class="tool">확인 도구: <code>${esc(ev.tool)}</code></p>` : ''}
-    <p class="note">파트너 표준 검증랩에서 <b>조치 전 → 조치 후</b>를 재현한 참고 증적입니다. 실제 해소 여부는 SecurityScorecard 재스캔으로 확인합니다.</p>`
+  const ba = `<div class="ba">${imgOrPlaceholder(ev.beforeImg, ev.beforeLabel || '조치 전', 'before')}${imgOrPlaceholder(ev.afterImg, ev.afterLabel || '조치 후', 'after')}</div>`
+  const observe = diffTable(ev.diff) + (ev.tool ? `<p class="tool">확인 도구: <code>${esc(ev.tool)}</code></p>` : '') + '<p class="muted">관측값은 파트너 검증랩 재현 결과입니다. 고객 운영환경의 실제 해소 여부는 <b>SecurityScorecard 재스캔</b>으로 확인합니다.</p>'
+  return step('01', '개요', overviewBody(it))
+    + step('02', '조치 방법', fixBody(it))
+    + step('03', '조치 전 / 후', ba)
+    + step('04', '관측값 · 확인', observe)
+    + step('05', '마무리', '<p class="note">파트너 표준 검증랩에서 조치 전 → 조치 후를 재현한 참고 증적입니다. 귀사 운영환경의 조치 완료를 의미하지 않으며, 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차로 확인해야 합니다.</p>')
 }
 
 function guideSection(it) {
   const g = it.guide || {}
-  const steps = Array.isArray(g.steps) && g.steps.length
-    ? `<ol class="steps">${g.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''
-  return `
-    ${g.direction ? `<div class="block"><div class="block-t">조치 방향</div><p>${esc(g.direction)}</p></div>` : ''}
-    ${steps ? `<div class="block"><div class="block-t">조치 단계</div>${steps}</div>` : ''}
-    ${g.sscRec ? `<div class="block"><div class="block-t">SecurityScorecard 공식 권고</div><p>${esc(g.sscRec)}</p></div>` : ''}
-    ${g.sscDesc ? `<div class="block"><div class="block-t">SSC 설명</div><p class="muted">${esc(g.sscDesc)}</p></div>` : ''}
-    <p class="note">일반 구성 기준 조치 방향입니다. 운영 반영 전 고객 내부 검토·테스트가 필요하며, 해소 여부는 SecurityScorecard 재스캔으로 확인합니다.</p>`
+  const verify = '<p>운영 반영 후 <b>SecurityScorecard 재스캔</b>으로 해당 Finding 해소를 확인합니다.</p>' + (g.sscDesc ? `<div class="block"><div class="block-t">SSC 설명</div><p class="muted">${esc(g.sscDesc)}</p></div>` : '')
+  return step('01', '개요', overviewBody(it))
+    + step('02', '조치 방법', fixBody(it))
+    + step('03', '확인', verify)
+    + step('04', '마무리', '<p class="note">일반 구성 기준 조치 방향입니다. 운영 반영 전 고객 내부 검토·테스트가 필요하며, 해소 여부는 SecurityScorecard 재스캔으로 확인합니다.</p>')
 }
 
-function sectionHtml(it) {
+function navBar(i, arr) {
+  const prev = i > 0 ? arr[i - 1].key : '__cover__'
+  const next = i < arr.length - 1 ? arr[i + 1].key : '__cover__'
+  const prevL = i > 0 ? '← 이전' : '← 목록'
+  const nextL = i < arr.length - 1 ? '다음 →' : '목록 →'
+  return `<div class="item-nav"><button data-goto="${esc(prev)}">${prevL}</button><button class="ghost" data-goto="__cover__">목록 · ${i + 1} / ${arr.length}</button><button data-goto="${esc(next)}">${nextL}</button></div>`
+}
+
+function sectionHtml(it, i, arr) {
   const sev = String(it.severity || '').toLowerCase()
-  const kindBadge = it.kind === 'lab'
-    ? '<span class="badge badge-lab">조치 전후 증거</span>'
-    : '<span class="badge badge-guide">조치 가이드</span>'
+  const kindBadge = it.kind === 'lab' ? '<span class="badge badge-lab">조치 전후 증거</span>' : '<span class="badge badge-guide">조치 가이드</span>'
   return `<section class="item" data-key="${esc(it.key)}">
-    <button class="back" data-goto="__cover__">← 조치 우선순위로</button>
+    ${navBar(i, arr)}
     <div class="item-head">
       <h2>${esc(it.name)}</h2>
       <div class="item-meta">
         <span class="badge" style="background:${sevColor(sev)}1a;color:${sevColor(sev)}">위험도 ${esc(SEV_KO[sev] || it.severity || '-')}</span>
-        ${it.scoreImpact != null ? `<span class="badge badge-score">점수 개선 +${esc(it.scoreImpact)}</span>` : ''}
+        ${it.scoreImpact != null ? `<span class="badge badge-score">점수 개선 +${fmtImpact(it.scoreImpact)}</span>` : ''}
         ${kindBadge}
       </div>
     </div>
     ${it.kind === 'lab' ? labSection(it) : guideSection(it)}
+    ${navBar(i, arr)}
   </section>`
 }
 
@@ -73,7 +116,7 @@ function coverRows(items) {
     return `<tr data-goto="${esc(it.key)}">
       <td class="name">${esc(it.name)}</td>
       <td><span class="badge" style="background:${sevColor(sev)}1a;color:${sevColor(sev)}">${esc(SEV_KO[sev] || it.severity || '-')}</span></td>
-      <td class="num">${it.scoreImpact != null ? '+' + esc(it.scoreImpact) : '-'}</td>
+      <td class="num">${it.scoreImpact != null ? '+' + fmtImpact(it.scoreImpact) : '-'}</td>
       <td>${kind}</td>
       <td class="go">보기 →</td>
     </tr>`
@@ -164,10 +207,28 @@ table.pri td.go{color:#2563eb;font-weight:600;white-space:nowrap;text-align:righ
 .badge-score{background:#dcfce7;color:#15803d}
 .item{display:none}
 .item.active{display:block}
-.item .back{background:none;border:none;color:#2563eb;font-size:13px;font-weight:600;cursor:pointer;padding:0;margin-bottom:10px}
-.item-head{border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:16px}
-.item-head h2{margin:0 0 8px;font-size:19px}
+.item-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 16px}
+.item-nav button{background:#fff;border:1px solid #cbd5e1;color:#1f2937;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer}
+.item-nav button:hover{background:#f1f5f9}
+.item-nav button.ghost{border-color:transparent;color:#64748b;font-weight:500}
+.item:last-of-type{margin-bottom:0}
+.item .item-nav:last-child{margin:18px 0 0;border-top:1px solid #eef2f7;padding-top:16px}
+.item-head{border-bottom:1px solid #e2e8f0;padding-bottom:12px;margin-bottom:18px}
+.item-head h2{margin:0 0 8px;font-size:20px}
 .item-meta{display:flex;gap:8px;flex-wrap:wrap}
+.step{margin:0 0 20px}
+.step-h{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;color:#0f2038;margin-bottom:10px}
+.step-n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;background:#0f2038;color:#fff;font-size:12px;font-weight:700}
+.step-b{padding-left:34px}
+.step-b>p{margin:0 0 10px}
+.ov-meta{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:10px;font-size:13px;color:#64748b}
+.ov-meta b{color:#0f2038}
+.srcdiff{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin:10px 0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+.srcdiff-h{background:#f1f5f9;color:#475569;padding:6px 12px;font-family:inherit;font-size:12px;border-bottom:1px solid #e2e8f0}
+.dl{padding:2px 12px;white-space:pre-wrap;word-break:break-all}
+.dl.add{background:#f0fdf4;color:#15803d}
+.dl.del{background:#fef2f2;color:#b91c1c}
+.dl.ctx{color:#64748b}
 .ba{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 16px}
 .shot{margin:0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#0b1220}
 .shot img{display:block;width:100%;height:auto}
@@ -204,7 +265,7 @@ table.diff tr.changed{background:#fafcff}
   #overview{display:block !important;break-after:page}
   table.pri td.go{display:none}
   .item{display:block !important;break-before:page}
-  .item .back{display:none}
+  .item-nav{display:none}
   tr[data-goto]{cursor:default}
 }
 </style>

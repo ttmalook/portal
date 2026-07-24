@@ -882,10 +882,14 @@ app.post('/api/portal/report-export', async (req, res) => {
       const ev = run.evidence
       const [beforeImg, afterImg] = await Promise.all([imgToDataUri(ev.visual_before?.screenshot), imgToDataUri(ev.visual_after?.screenshot)])
       return { key, name, severity: t.severity, scoreImpact: t.score_impact, kind: 'lab',
+        category: run.category, tool: run.tool, sscDesc: t.ssc_description,
+        guide: run.guide ? { direction: run.guide.direction, steps: run.guide.steps } : null,
+        sourceDiff: run.sourceDiff || null,
         evidence: { beforeImg, afterImg, beforeLabel: ev.visual_before?.label, afterLabel: ev.visual_after?.label, diff: ev.technical_diff || [], tool: ev.raw_summary?.tool } }
     }
     const g = GUIDES[guideKey(key)] || {}
     return { key, name, severity: t.severity, scoreImpact: t.score_impact, kind: 'guide',
+      category: t.factor || null,
       guide: { direction: g.direction, steps: g.steps, sscRec: t.ssc_recommendation, sscDesc: t.ssc_description } }
   }))
   const html = buildReportHtml({ customer, domain: scoreDomain, shownDomain, score, grade, generatedAt: new Date().toISOString().slice(0, 10), fontDataUri: fontDataUri(), items })
