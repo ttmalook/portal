@@ -176,6 +176,8 @@ body{margin:0;background:#f1f5f9;color:#0f172a;font-family:${fontStack};line-hei
 .mast-meta .mt{font-size:14px;color:#8598AE;letter-spacing:.06em}
 .mast-foot{margin-top:56px;padding-top:16px;border-top:1px solid rgba(201,166,107,.3);font-size:11px;letter-spacing:.22em;color:#7B8CA3;text-transform:uppercase}
 @media(max-width:640px){.mast-title{font-size:38px}.mast-inner{padding:7vh 34px}.mast-accent{opacity:.5}}
+.page{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:6vh 0}
+.page .exec{margin-top:0;width:100%}
 .exec{margin-top:20px;background:#fff;border:1px solid #e6e9ef;border-radius:14px;padding:24px 26px}
 .exec-eyebrow{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#a8863f;font-weight:700}
 .exec-eyebrow::after{content:'';display:block;width:38px;height:2px;background:#C9A66B;margin-top:9px}
@@ -267,8 +269,8 @@ table.diff tr.changed{background:#fafcff}
   .wrap{max-width:100%;padding:0}
   #masthead{display:flex !important;min-height:auto;height:100vh;break-after:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #masthead::before,#masthead::after,.mast-accent{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  #exec,#notice{display:block !important}
-  #exec{break-after:page}
+  #execpage,#notice{display:block !important}
+  #execpage{min-height:auto;padding:0;break-after:page}
   #overview{display:block !important;break-after:page}
   table.pri td.go{display:none}
   .item{display:block !important;break-before:page}
@@ -297,7 +299,7 @@ table.diff tr.changed{background:#fafcff}
   </div>
 </section>
 <div class="wrap">
-  <section class="exec" id="exec">
+  <section class="page" id="execpage"><div class="exec">
     <div class="exec-eyebrow">Executive Summary · 요약</div>
     <div class="exec-grid">
       <div class="exec-score">
@@ -314,7 +316,7 @@ table.diff tr.changed{background:#fafcff}
       </div>
     </div>
     <p class="exec-desc">${esc(d.customer)}(${esc(d.shownDomain || d.domain)})에 대한 SecurityScorecard 외부 보안 평가 결과 총 <b>${items.length}개 유형</b>의 리스크가 확인되었습니다. 아래 조치 우선순위는 <b>위험도와 점수 개선 효과</b> 순으로 정렬되어 있으며, 각 유형은 파트너 검증랩 재현 증적 또는 조치 가이드로 제공됩니다.</p>
-  </section>
+  </div></section>
 
   <div class="notice" id="notice">파트너 표준 검증랩 증적은 귀사 운영환경의 조치 완료를 의미하지 않습니다. 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차를 통해 확인해야 합니다.</div>
 
@@ -334,7 +336,7 @@ table.diff tr.changed{background:#fafcff}
 </div>
 <script>
 (function(){
-  var ids=['masthead','exec','notice','overview'];
+  var ids=['masthead','execpage','notice','overview'];
   var summary=ids.map(function(id){return document.getElementById(id)}).filter(Boolean);
   var detail=document.getElementById('detail');
   var items=Array.prototype.slice.call(document.querySelectorAll('.item'));
