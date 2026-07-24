@@ -80,36 +80,19 @@ function coverRows(items) {
   }).join('')
 }
 
-// 표지 상단 네트워크 노드 메시(정적·결정적) — 가는 선+점, 대부분 회색에 소수 포인트 컬러 + 아이콘 타일 3개.
-function buildMesh() {
-  let s = 20260724
-  const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff }
-  const W = 600, H = 300, cols = 7, rows = 4
-  const nodes = []
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    nodes.push({ x: +(20 + (c / (cols - 1)) * (W - 40) + (rnd() - 0.5) * 46).toFixed(1), y: +(24 + (r / (rows - 1)) * (H - 60) + (rnd() - 0.5) * 40).toFixed(1) })
-  }
-  const idx = (r, c) => r * cols + c
-  const lines = []
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    if (c < cols - 1 && rnd() > 0.22) lines.push([nodes[idx(r, c)], nodes[idx(r, c + 1)]])
-    if (r < rows - 1 && rnd() > 0.22) lines.push([nodes[idx(r, c)], nodes[idx(r + 1, c)]])
-    if (r < rows - 1 && c < cols - 1 && rnd() > 0.5) lines.push([nodes[idx(r, c)], nodes[idx(r + 1, c + 1)]])
-    if (r < rows - 1 && c > 0 && rnd() > 0.62) lines.push([nodes[idx(r, c)], nodes[idx(r + 1, c - 1)]])
-  }
-  const accent = { 4: '#4a90d9', 9: '#3bb0a0', 15: '#d9645a', 19: '#e0a83e', 23: '#4a90d9' }
-  const lineSvg = lines.map((l) => `<line x1="${l[0].x}" y1="${l[0].y}" x2="${l[1].x}" y2="${l[1].y}"/>`).join('')
-  const dotSvg = nodes.map((n, i) => accent[i]
-    ? `<circle cx="${n.x}" cy="${n.y}" r="5" fill="${accent[i]}"/>`
-    : `<circle cx="${n.x}" cy="${n.y}" r="3" fill="#b9c3d0"/>`).join('')
-  const tile = (x, y, color, glyph) => `<g transform="translate(${x},${y})"><rect x="-23" y="-23" width="46" height="46" rx="9" fill="${color}"/>${glyph}</g>`
-  const shield = '<path d="M0,-11 L10,-6 L10,1 C10,8 0,13 0,13 C0,13 -10,8 -10,1 L-10,-6 Z" fill="#fff"/>'
-  const globe = '<g fill="none" stroke="#fff" stroke-width="2"><circle r="11"/><ellipse rx="5" ry="11"/><line x1="-11" y1="0" x2="11" y2="0"/></g>'
-  const lock = '<g fill="#fff"><rect x="-8" y="-2" width="16" height="13" rx="2"/><path d="M-5,-2 V-6 a5,5 0 0 1 10,0 V-2" fill="none" stroke="#fff" stroke-width="2.4"/></g>'
-  const tiles = tile(250, 66, '#a9c23b', shield) + tile(372, 118, '#4a90d9', globe) + tile(300, 176, '#d9645a', lock)
-  return `<svg class="mesh" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><g stroke="#dce2e9" stroke-width="1">${lineSvg}</g>${dotSvg}${tiles}</svg>`
-}
-const MESH_SVG = buildMesh()
+// 표지 배경 액센트 — 아주 약한 골드 폴리곤 라인(로고 헥사곤 모티프). 절제·정적.
+const ACCENT_SVG = '<svg class="mast-accent" viewBox="0 0 460 620" preserveAspectRatio="xMidYMid meet" aria-hidden="true">'
+  + '<g fill="none" stroke="#C9A66B">'
+  + '<polygon points="230,70 395,165 395,355 230,450 65,355 65,165" stroke-opacity="0.16" stroke-width="1"/>'
+  + '<polygon points="230,160 315,210 315,310 230,360 145,310 145,210" stroke-opacity="0.11" stroke-width="1"/>'
+  + '<line x1="230" y1="70" x2="230" y2="160" stroke-opacity="0.09"/><line x1="395" y1="165" x2="315" y2="210" stroke-opacity="0.09"/>'
+  + '<line x1="395" y1="355" x2="315" y2="310" stroke-opacity="0.09"/><line x1="65" y1="165" x2="145" y2="210" stroke-opacity="0.09"/>'
+  + '</g><g fill="#C9A66B" fill-opacity="0.45">'
+  + '<circle cx="230" cy="70" r="2.4"/><circle cx="395" cy="165" r="2.4"/><circle cx="395" cy="355" r="2.4"/><circle cx="230" cy="450" r="2.4"/><circle cx="65" cy="355" r="2.4"/><circle cx="65" cy="165" r="2.4"/>'
+  + '</g></svg>'
+const LOGO_SVG = '<svg viewBox="0 0 48 48" width="42" height="42" aria-hidden="true"><path d="M24 3 L41.3 13 L41.3 35 L24 45 L6.7 35 L6.7 13 Z" fill="none" stroke="#C9A66B" stroke-width="2.2"/><path d="M24 14 L33 19.2 L33 29.6 L24 34.8 L15 29.6 L15 19.2 Z" fill="#C9A66B"/><circle cx="24" cy="24.4" r="3" fill="#071A2F"/></svg>'
+const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+function fmtDateEn(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso) || ''); if (!m) return String(iso || ''); return `${+m[3]} ${MONTHS_EN[+m[2] - 1]} ${m[1]}` }
 
 export function buildReportHtml(d) {
   const items = d.items || []
@@ -129,26 +112,40 @@ ${fontFace}
 *{box-sizing:border-box}
 body{margin:0;background:#f1f5f9;color:#0f172a;font-family:${fontStack};line-height:1.6;-webkit-font-smoothing:antialiased}
 .wrap{max-width:960px;margin:0 auto;padding:24px 20px 64px}
-/* ── 표지(마스트헤드) — 테크 네트워크 메시 ── */
-.masthead{position:relative;overflow:hidden;background:#fff;min-height:100vh;display:flex;flex-direction:column;border-bottom:1px solid #eef2f7}
-.mesh-wrap{position:relative;height:44vh;min-height:270px;flex-shrink:0}
-.mesh{position:absolute;inset:0;width:100%;height:100%;display:block}
-.mast-inner{flex:1;padding:2vh 8vw 7vh;display:flex;flex-direction:column;justify-content:center;max-width:780px}
-.mast-eyebrow{font-size:12px;letter-spacing:.18em;font-weight:800;color:#94a3b8;text-transform:uppercase}
-.mast-title{font-size:60px;line-height:1.0;font-weight:800;letter-spacing:-.02em;color:#1f2937;margin:14px 0 0}
-.mast-sub{font-size:19px;font-weight:800;letter-spacing:.14em;color:#c3ccd8;margin-top:8px;text-transform:uppercase}
-.mast-rule{width:84px;height:5px;border-radius:3px;background:#1f2937;margin:24px 0 28px}
-.mast-score{display:flex;align-items:center;gap:18px;margin-bottom:44px}
-.mast-grade{width:92px;height:92px;border-radius:50%;border:6px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:800;flex-shrink:0}
-.mast-score-meta{display:flex;flex-direction:column}
-.mast-score-meta span{font-size:12.5px;color:#64748b;letter-spacing:.02em}
-.mast-score-meta b{font-size:26px;color:#17233f;font-variant-numeric:tabular-nums;line-height:1.2}
-.mast-meta{display:flex;gap:40px;flex-wrap:wrap;border-top:1px solid #eef2f7;padding-top:22px}
-.mast-meta div{display:flex;flex-direction:column;gap:3px}
-.mast-meta span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;font-weight:700}
-.mast-meta b{font-size:15px;color:#17233f}
-.mast-meta code{font-size:14px;background:#f1f5f9;padding:1px 8px;border-radius:6px}
-@media(max-width:640px){.mast-title{font-size:40px}.mast-inner{padding:2vh 32px 6vh}.mesh-wrap{height:34vh}}
+/* ── 표지(마스트헤드) — Premium Enterprise (Navy #071A2F + Gold #C9A66B) ── */
+.masthead{position:relative;overflow:hidden;background:#071A2F;min-height:100vh;display:flex;flex-direction:column;color:#EAF0F7}
+.masthead::before{content:'';position:absolute;inset:0;background:radial-gradient(rgba(201,166,107,.06) 1px,transparent 1.5px) 0 0/30px 30px,linear-gradient(158deg,#0B2540 0%,#071A2F 55%,#04101E 100%);z-index:0}
+.masthead::after{content:'';position:absolute;inset:26px;border:1px solid rgba(201,166,107,.26);pointer-events:none;z-index:2}
+.mast-accent{position:absolute;top:12%;right:-4%;width:52%;height:76%;z-index:1;opacity:.9}
+.mast-inner{position:relative;z-index:3;flex:1;display:flex;flex-direction:column;padding:9vh 9vw}
+.mast-logo{display:flex;align-items:center;gap:13px}
+.mast-logo .wm{display:flex;flex-direction:column;line-height:1.15}
+.mast-logo .wm b{font-size:17px;letter-spacing:.14em;font-weight:700;color:#EAF0F7}
+.mast-logo .wm span{font-size:12px;letter-spacing:.1em;color:#C9A66B}
+.mast-center{margin-top:auto}
+.mast-eyebrow{font-size:14px;letter-spacing:.34em;font-weight:600;color:#C9A66B;text-transform:uppercase}
+.mast-title{font-size:52px;line-height:1.12;font-weight:800;letter-spacing:-.01em;color:#F4F7FB;margin:18px 0 0}
+.mast-rule{width:64px;height:2px;background:#C9A66B;margin:26px 0 22px}
+.mast-sub{font-size:18px;font-weight:500;letter-spacing:.02em;color:#9FB1C6}
+.mast-meta{margin-top:52px;display:flex;flex-direction:column;gap:5px}
+.mast-meta .mc{font-size:20px;font-weight:700;color:#F4F7FB;letter-spacing:.01em}
+.mast-meta .md{font-size:15px;color:#C9A66B;letter-spacing:.02em}
+.mast-meta .mt{font-size:14px;color:#8598AE;letter-spacing:.06em}
+.mast-foot{margin-top:56px;padding-top:16px;border-top:1px solid rgba(201,166,107,.3);font-size:11px;letter-spacing:.22em;color:#7B8CA3;text-transform:uppercase}
+@media(max-width:640px){.mast-title{font-size:38px}.mast-inner{padding:7vh 34px}.mast-accent{opacity:.5}}
+.exec{margin-top:28px;padding:2px}
+.exec-eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#b08a3e;font-weight:700}
+.exec-grid{display:flex;align-items:center;gap:36px;flex-wrap:wrap;margin:18px 0 18px}
+.exec-score{display:flex;align-items:center;gap:18px}
+.exec-grade{width:96px;height:96px;border-radius:50%;border:5px solid;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;flex-shrink:0}
+.exec-num{font-size:40px;font-weight:800;color:#0f2038;font-variant-numeric:tabular-nums;line-height:1}
+.exec-num span{font-size:18px;color:#94a3b8;font-weight:600}
+.exec-lbl{font-size:13px;color:#64748b;margin-top:5px}
+.exec-stats{display:flex;gap:30px;margin-left:auto}
+.exec-stats div{display:flex;flex-direction:column;gap:2px}
+.exec-stats b{font-size:28px;font-weight:800;color:#0f2038;font-variant-numeric:tabular-nums;line-height:1}
+.exec-stats span{font-size:12px;color:#64748b}
+.exec-desc{font-size:14px;color:#334155;line-height:1.75;margin:0;border-top:1px solid #e8edf3;padding-top:16px}
 .notice{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:14px 16px;margin:18px 0;font-size:13px;color:#92400e}
 .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px 22px;margin-top:16px}
 .card h3{margin:0 0 4px;font-size:16px}
@@ -201,6 +198,9 @@ table.diff tr.changed{background:#fafcff}
   body{background:#fff}
   .wrap{max-width:100%;padding:0}
   #masthead{display:flex !important;min-height:auto;height:100vh;break-after:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #masthead::before,#masthead::after,.mast-accent{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #exec,#notice{display:block !important}
+  #exec{break-after:page}
   #overview{display:block !important;break-after:page}
   table.pri td.go{display:none}
   .item{display:block !important;break-before:page}
@@ -211,28 +211,44 @@ table.diff tr.changed{background:#fafcff}
 </head>
 <body>
 <section class="masthead" id="masthead">
-  <div class="mesh-wrap">${MESH_SVG}</div>
+  ${ACCENT_SVG}
   <div class="mast-inner">
-    <div class="mast-eyebrow">SecurityScorecard 파트너</div>
-    <h1 class="mast-title">보안 리스크 리포트</h1>
-    <div class="mast-sub">Security Risk Report · ${esc(String(d.generatedAt).slice(0, 4))}</div>
-    <div class="mast-rule"></div>
-    <div class="mast-score">
-      <div class="mast-grade" style="color:${gc}">${d.grade ? esc(d.grade) : '—'}</div>
-      <div class="mast-score-meta">
-        <span>SecurityScorecard 보안등급</span>
-        <b>${d.score != null ? esc(d.score) : '—'} <span style="font-size:15px;color:#94a3b8">/ 100</span></b>
+    <div class="mast-logo">${LOGO_SVG}<div class="wm"><b>SECURITYSCORECARD</b><span>파트너</span></div></div>
+    <div class="mast-center">
+      <div class="mast-eyebrow">Security Risk Assessment</div>
+      <h1 class="mast-title">보안 리스크<br/>평가 보고서</h1>
+      <div class="mast-rule"></div>
+      <div class="mast-sub">SecurityScorecard 기반 외부 보안 리스크 평가</div>
+      <div class="mast-meta">
+        <div class="mc">${esc(d.customer)}</div>
+        <div class="md">${esc(d.shownDomain || d.domain)}</div>
+        <div class="mt">${esc(fmtDateEn(d.generatedAt))}</div>
       </div>
     </div>
-    <div class="mast-meta">
-      <div><span>고객사</span><b>${esc(d.customer)}</b></div>
-      <div><span>대상 도메인</span><b><code>${esc(d.shownDomain || d.domain)}</code></b></div>
-      <div><span>발행일</span><b>${esc(d.generatedAt)}</b></div>
-    </div>
+    <div class="mast-foot">Powering Security Ratings · Driving Risk Management</div>
   </div>
 </section>
 <div class="wrap">
-  <div class="notice">파트너 표준 검증랩 증적은 귀사 운영환경의 조치 완료를 의미하지 않습니다. 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차를 통해 확인해야 합니다.</div>
+  <section class="exec" id="exec">
+    <div class="exec-eyebrow">Executive Summary · 요약</div>
+    <div class="exec-grid">
+      <div class="exec-score">
+        <div class="exec-grade" style="color:${gc};border-color:${gc}">${d.grade ? esc(d.grade) : '—'}</div>
+        <div class="exec-score-meta">
+          <div class="exec-num">${d.score != null ? esc(d.score) : '—'}<span> / 100</span></div>
+          <div class="exec-lbl">SecurityScorecard 보안등급</div>
+        </div>
+      </div>
+      <div class="exec-stats">
+        <div><b>${items.length}</b><span>조치 우선순위 (종)</span></div>
+        <div><b>${items.filter((it) => it.kind === 'lab').length}</b><span>조치 전후 증거</span></div>
+        <div><b>${items.filter((it) => it.kind === 'guide').length}</b><span>조치 가이드</span></div>
+      </div>
+    </div>
+    <p class="exec-desc">${esc(d.customer)}(${esc(d.shownDomain || d.domain)})에 대한 SecurityScorecard 외부 보안 평가 결과 총 <b>${items.length}개 유형</b>의 리스크가 확인되었습니다. 아래 조치 우선순위는 <b>위험도와 점수 개선 효과</b> 순으로 정렬되어 있으며, 각 유형은 파트너 검증랩 재현 증적 또는 조치 가이드로 제공됩니다.</p>
+  </section>
+
+  <div class="notice" id="notice">파트너 표준 검증랩 증적은 귀사 운영환경의 조치 완료를 의미하지 않습니다. 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차를 통해 확인해야 합니다.</div>
 
   <div id="overview" class="card">
     <h3>조치 우선순위</h3>
@@ -250,13 +266,15 @@ table.diff tr.changed{background:#fafcff}
 </div>
 <script>
 (function(){
-  var masthead=document.getElementById('masthead'), overview=document.getElementById('overview'), detail=document.getElementById('detail');
+  var ids=['masthead','exec','notice','overview'];
+  var summary=ids.map(function(id){return document.getElementById(id)}).filter(Boolean);
+  var detail=document.getElementById('detail');
   var items=Array.prototype.slice.call(document.querySelectorAll('.item'));
   function show(key){
-    if(key==='__cover__'){ masthead.style.display=''; overview.style.display=''; detail.style.display='none'; items.forEach(function(s){s.classList.remove('active')}); window.scrollTo(0,0); return; }
+    if(key==='__cover__'){ summary.forEach(function(e){e.style.display=''}); detail.style.display='none'; items.forEach(function(s){s.classList.remove('active')}); window.scrollTo(0,0); return; }
     var found=false;
     items.forEach(function(s){ var on=s.getAttribute('data-key')===key; s.classList.toggle('active',on); if(on)found=true; });
-    masthead.style.display='none'; overview.style.display='none'; detail.style.display=found?'':'none'; window.scrollTo(0,0);
+    summary.forEach(function(e){e.style.display='none'}); detail.style.display=found?'':'none'; window.scrollTo(0,0);
   }
   document.querySelectorAll('[data-goto]').forEach(function(el){ el.addEventListener('click',function(){ show(el.getAttribute('data-goto')); }); });
   show('__cover__');
