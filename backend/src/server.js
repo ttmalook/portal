@@ -855,6 +855,7 @@ async function imgToDataUri(screenshot) {
 app.post('/api/portal/report-export', async (req, res) => {
   const customer = String(req.body?.customer || req.query.customer || '').trim()
   const names = (req.body && req.body.names) || {}
+  const extras = (req.body && req.body.extras) || {}
   if (!customer) return res.status(400).json({ ok: false, message: 'customer required' })
   const domains = await portal.getDomains()
   const dom = (domains || []).find((d) => d.customer === customer)
@@ -877,19 +878,21 @@ app.post('/api/portal/report-export', async (req, res) => {
   const items = await Promise.all(summary.map(async (t) => {
     const key = t.issue_type
     const name = names[key] || key
+    const ex = extras[key] || {}
+    const apply = { whereToChange: ex.whereToChange || [], engines: ex.engines || [], versionNote: ex.versionNote || null }
     const run = runByCanon[canonType(key)]
     if (run && run.status === 'succeeded' && run.evidence) {
       const ev = run.evidence
       const [beforeImg, afterImg] = await Promise.all([imgToDataUri(ev.visual_before?.screenshot), imgToDataUri(ev.visual_after?.screenshot)])
       return { key, name, severity: t.severity, scoreImpact: t.score_impact, kind: 'lab',
-        category: run.category, tool: run.tool, sscDesc: t.ssc_description,
+        category: run.category, tool: run.tool, sscDesc: t.ssc_description, apply,
         guide: run.guide ? { direction: run.guide.direction, steps: run.guide.steps } : null,
         sourceDiff: run.sourceDiff || null,
         evidence: { beforeImg, afterImg, beforeLabel: ev.visual_before?.label, afterLabel: ev.visual_after?.label, diff: ev.technical_diff || [], tool: ev.raw_summary?.tool } }
     }
     const g = GUIDES[guideKey(key)] || {}
     return { key, name, severity: t.severity, scoreImpact: t.score_impact, kind: 'guide',
-      category: t.factor || null,
+      category: t.factor || null, apply,
       guide: { direction: g.direction, steps: g.steps, sscRec: t.ssc_recommendation, sscDesc: t.ssc_description } }
   }))
   const html = buildReportHtml({ customer, domain: scoreDomain, shownDomain, score, grade, generatedAt: new Date().toISOString().slice(0, 10), fontDataUri: fontDataUri(), items })

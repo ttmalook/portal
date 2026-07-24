@@ -53,10 +53,18 @@ function overviewBody(it) {
 
 function fixBody(it) {
   const g = it.guide || {}
+  const ap = it.apply || {}
   const parts = []
   if (g.direction) parts.push(`<p>${esc(g.direction)}</p>`)
   const sl = stepsList(g.steps); if (sl) parts.push(sl)
-  if (it.sourceDiff) parts.push(sourceDiffHtml(it.sourceDiff))
+  if (Array.isArray(ap.whereToChange) && ap.whereToChange.length) {
+    parts.push(`<div class="mini-t">어디를 고쳐야 하나요 (설정 위치)</div><p class="muted">아래 위치 <b>중 한 곳</b>에서 환경에 맞게 적용합니다(모두가 아니라 택1).</p><ul class="where">${ap.whereToChange.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>`)
+  }
+  if (it.sourceDiff) parts.push(`<div class="mini-t">실제 소스 변경 (검증랩 타깃의 취약 → 조치)</div>${sourceDiffHtml(it.sourceDiff)}`)
+  if (Array.isArray(ap.engines) && ap.engines.length) {
+    const eng = ap.engines.map((e) => `<div class="eng"><div class="eng-h">${esc(e.name)}${e.lang ? ` · ${esc(e.lang)}` : ''}</div><pre class="eng-c">${esc(e.snippet)}</pre></div>`).join('')
+    parts.push(`<div class="mini-t">고객 환경 적용 방법 (엔진별)</div><p class="muted">고객 웹 엔진에 맞는 설정을 적용하세요.</p>${eng}${ap.versionNote ? `<p class="vnote">${esc(ap.versionNote)}</p>` : ''}`)
+  }
   if (g.sscRec) parts.push(`<div class="block"><div class="block-t">SecurityScorecard 공식 권고</div><p>${esc(g.sscRec)}</p></div>`)
   return parts.join('') || '<p class="muted">해당 유형의 표준 조치 방향을 준비 중입니다.</p>'
 }
@@ -81,19 +89,11 @@ function guideSection(it) {
     + step('04', '마무리', '<p class="note">일반 구성 기준 조치 방향입니다. 운영 반영 전 고객 내부 검토·테스트가 필요하며, 해소 여부는 SecurityScorecard 재스캔으로 확인합니다.</p>')
 }
 
-function navBar(i, arr) {
-  const prev = i > 0 ? arr[i - 1].key : '__cover__'
-  const next = i < arr.length - 1 ? arr[i + 1].key : '__cover__'
-  const prevL = i > 0 ? '← 이전' : '← 목록'
-  const nextL = i < arr.length - 1 ? '다음 →' : '목록 →'
-  return `<div class="item-nav"><button data-goto="${esc(prev)}">${prevL}</button><button class="ghost" data-goto="__cover__">목록 · ${i + 1} / ${arr.length}</button><button class="nx" data-goto="${esc(next)}">${nextL}</button></div>`
-}
-
-function sectionHtml(it, i, arr) {
+function sectionHtml(it, nav) {
   const sev = String(it.severity || '').toLowerCase()
   const kindBadge = it.kind === 'lab' ? '<span class="badge badge-lab">조치 전후 증거</span>' : '<span class="badge badge-guide">조치 가이드</span>'
   return `<section class="item" data-key="${esc(it.key)}">
-    ${navBar(i, arr)}
+    ${nav}
     <div class="item-head">
       <h2>${esc(it.name)}</h2>
       <div class="item-meta">
@@ -103,7 +103,7 @@ function sectionHtml(it, i, arr) {
       </div>
     </div>
     ${it.kind === 'lab' ? labSection(it) : guideSection(it)}
-    ${navBar(i, arr)}
+    ${nav}
   </section>`
 }
 
@@ -140,6 +140,15 @@ function fmtDateEn(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso) 
 export function buildReportHtml(d) {
   const items = d.items || []
   const gc = gradeColor(d.score)
+  // 전역 페이지 순서(버튼 페이징) — 표지·요약·우선순위·각 항목.
+  const order = ['__cover__', '__exec__', '__overview__', ...items.map((it) => it.key)]
+  const orderJson = JSON.stringify(order)
+  const pager = (key) => {
+    const i = order.indexOf(key)
+    const prev = i > 0 ? order[i - 1] : null
+    const next = i < order.length - 1 ? order[i + 1] : null
+    return `<div class="pager">${prev ? `<button data-goto="${esc(prev)}">← 이전</button>` : '<span class="pgx"></span>'}<span class="pager-mid">${i + 1} / ${order.length}</span>${next ? `<button class="nx" data-goto="${esc(next)}">다음 →</button>` : '<span class="pgx"></span>'}</div>`
+  }
   const fontFace = d.fontDataUri
     ? `@font-face{font-family:'Pretendard';src:url('${d.fontDataUri}') format('woff2');font-weight:100 900;font-display:swap;}`
     : ''
@@ -176,9 +185,18 @@ body{margin:0;background:#f1f5f9;color:#0f172a;font-family:${fontStack};line-hei
 .mast-meta .mt{font-size:14px;color:#8598AE;letter-spacing:.06em}
 .mast-foot{margin-top:56px;padding-top:16px;border-top:1px solid rgba(201,166,107,.3);font-size:11px;letter-spacing:.22em;color:#7B8CA3;text-transform:uppercase}
 @media(max-width:640px){.mast-title{font-size:38px}.mast-inner{padding:7vh 34px}.mast-accent{opacity:.5}}
-.page{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:6vh 0}
-.page .exec{margin-top:0;width:100%}
-.exec{margin-top:20px;background:#fff;border:1px solid #e6e9ef;border-radius:14px;padding:24px 26px}
+.pg{padding:22px 0}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:24px 0 6px}
+.pager .pgx{width:1px}
+.pager button{background:#fff;border:1px solid #0F2038;color:#0F2038;font-size:13px;font-weight:600;padding:8px 16px;border-radius:8px;cursor:pointer}
+.pager button:hover{background:#0F2038;color:#fff}
+.pager button.nx{background:#0F2038;color:#fff}
+.pager button.nx:hover{background:#1c3453}
+.pager-mid{font-size:12.5px;color:#64748b;font-variant-numeric:tabular-nums}
+.mast-cta{position:relative;z-index:3;margin-top:22px}
+.mast-cta button{background:#C9A66B;border:none;color:#071A2F;font-size:14px;font-weight:700;padding:11px 22px;border-radius:8px;cursor:pointer;letter-spacing:.02em}
+.mast-cta button:hover{background:#d8b87f}
+.exec{margin-top:0;background:#fff;border:1px solid #e6e9ef;border-radius:14px;padding:24px 26px}
 .exec-eyebrow{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#a8863f;font-weight:700}
 .exec-eyebrow::after{content:'';display:block;width:38px;height:2px;background:#C9A66B;margin-top:9px}
 .exec-grid{display:flex;align-items:center;gap:36px;flex-wrap:wrap;margin:20px 0 20px}
@@ -238,6 +256,13 @@ table.pri tr[data-goto]:hover td.go{color:#a8863f}
 .dl.add{background:#f0fdf4;color:#15803d}
 .dl.del{background:#fef2f2;color:#b91c1c}
 .dl.ctx{color:#64748b}
+.mini-t{font-size:13.5px;font-weight:700;color:#0F2038;margin:16px 0 6px}
+.where{margin:4px 0 6px;padding-left:20px}
+.where li{margin:3px 0;color:#334155}
+.eng{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin:8px 0}
+.eng-h{background:#0F2038;color:#e8edf5;font-size:12px;font-weight:600;padding:7px 12px;letter-spacing:.02em}
+.eng-c{margin:0;padding:12px 14px;background:#0b1220;color:#d6e2f2;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;white-space:pre-wrap;word-break:break-word;overflow-x:auto}
+.vnote{font-size:12px;color:#64748b;margin:6px 0 0}
 .ba{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 16px}
 .shot{margin:0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#0b1220}
 .shot img{display:block;width:100%;height:auto}
@@ -269,12 +294,11 @@ table.diff tr.changed{background:#fafcff}
   .wrap{max-width:100%;padding:0}
   #masthead{display:flex !important;min-height:auto;height:100vh;break-after:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #masthead::before,#masthead::after,.mast-accent{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  #execpage,#notice{display:block !important}
-  #execpage{min-height:auto;padding:0;break-after:page}
-  #overview{display:block !important;break-after:page}
+  #execpage,#overview,#detail{display:block !important;padding:0}
+  #execpage,#overview{break-after:page}
   table.pri td.go{display:none}
   .item{display:block !important;break-before:page}
-  .item-nav{display:none}
+  .pager,.mast-cta{display:none}
   tr[data-goto]{cursor:default}
 }
 </style>
@@ -296,57 +320,68 @@ table.diff tr.changed{background:#fafcff}
       </div>
     </div>
     <div class="mast-foot">Powering Security Ratings · Driving Risk Management</div>
+    <div class="mast-cta"><button class="nx" data-goto="__exec__">리포트 시작 →</button></div>
   </div>
 </section>
 <div class="wrap">
-  <section class="page" id="execpage"><div class="exec">
-    <div class="exec-eyebrow">Executive Summary · 요약</div>
-    <div class="exec-grid">
-      <div class="exec-score">
-        <div class="exec-grade" style="color:${gc};border-color:${gc}">${d.grade ? esc(d.grade) : '—'}</div>
-        <div class="exec-score-meta">
-          <div class="exec-num">${d.score != null ? esc(d.score) : '—'}<span> / 100</span></div>
-          <div class="exec-lbl">SecurityScorecard 보안등급</div>
+  <section class="pg" id="execpage">
+    <div class="exec">
+      <div class="exec-eyebrow">Executive Summary · 요약</div>
+      <div class="exec-grid">
+        <div class="exec-score">
+          <div class="exec-grade" style="color:${gc};border-color:${gc}">${d.grade ? esc(d.grade) : '—'}</div>
+          <div class="exec-score-meta">
+            <div class="exec-num">${d.score != null ? esc(d.score) : '—'}<span> / 100</span></div>
+            <div class="exec-lbl">SecurityScorecard 보안등급</div>
+          </div>
+        </div>
+        <div class="exec-stats">
+          <div><b>${items.length}</b><span>조치 우선순위 (종)</span></div>
+          <div><b>${items.filter((it) => it.kind === 'lab').length}</b><span>조치 전후 증거</span></div>
+          <div><b>${items.filter((it) => it.kind === 'guide').length}</b><span>조치 가이드</span></div>
         </div>
       </div>
-      <div class="exec-stats">
-        <div><b>${items.length}</b><span>조치 우선순위 (종)</span></div>
-        <div><b>${items.filter((it) => it.kind === 'lab').length}</b><span>조치 전후 증거</span></div>
-        <div><b>${items.filter((it) => it.kind === 'guide').length}</b><span>조치 가이드</span></div>
-      </div>
+      <p class="exec-desc">${esc(d.customer)}(${esc(d.shownDomain || d.domain)})에 대한 SecurityScorecard 외부 보안 평가 결과 총 <b>${items.length}개 유형</b>의 리스크가 확인되었습니다. 다음 페이지의 조치 우선순위는 <b>위험도와 점수 개선 효과</b> 순으로 정렬되어 있으며, 각 유형은 파트너 검증랩 재현 증적 또는 조치 가이드로 제공됩니다.</p>
     </div>
-    <p class="exec-desc">${esc(d.customer)}(${esc(d.shownDomain || d.domain)})에 대한 SecurityScorecard 외부 보안 평가 결과 총 <b>${items.length}개 유형</b>의 리스크가 확인되었습니다. 아래 조치 우선순위는 <b>위험도와 점수 개선 효과</b> 순으로 정렬되어 있으며, 각 유형은 파트너 검증랩 재현 증적 또는 조치 가이드로 제공됩니다.</p>
-  </div></section>
+    ${pager('__exec__')}
+  </section>
 
-  <div class="notice" id="notice">파트너 표준 검증랩 증적은 귀사 운영환경의 조치 완료를 의미하지 않습니다. 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차를 통해 확인해야 합니다.</div>
+  <section class="pg" id="overview">
+    <div class="notice">파트너 표준 검증랩 증적은 귀사 운영환경의 조치 완료를 의미하지 않습니다. 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차를 통해 확인해야 합니다.</div>
+    <div class="card">
+      <h3>조치 우선순위</h3>
+      <p class="sub">총 ${items.length}개 유형 · 위험도·점수 개선 순 · 유형을 클릭하면 해당 조치 페이지로 이동합니다</p>
+      ${items.length
+        ? `<table class="pri"><thead><tr><th>문제 유형</th><th>위험도</th><th>점수 개선</th><th>전달 형태</th><th></th></tr></thead><tbody>${coverRows(items)}</tbody></table>`
+        : '<p class="muted">수집된 SecurityScorecard 리스크가 없습니다.</p>'}
+    </div>
+    ${pager('__overview__')}
+  </section>
 
-  <div id="overview" class="card">
-    <h3>조치 우선순위</h3>
-    <p class="sub">총 ${items.length}개 유형 · 위험도·점수 개선 순 · 유형을 클릭하면 조치/증적을 봅니다</p>
-    ${items.length
-      ? `<table class="pri"><thead><tr><th>문제 유형</th><th>위험도</th><th>점수 개선</th><th>전달 형태</th><th></th></tr></thead><tbody>${coverRows(items)}</tbody></table>`
-      : '<p class="muted">수집된 SecurityScorecard 리스크가 없습니다.</p>'}
-  </div>
-
-  <div class="card" id="detail">
-    ${items.map(sectionHtml).join('')}
+  <div id="detail">
+    ${items.map((it) => sectionHtml(it, pager(it.key))).join('')}
   </div>
 
   <div class="foot">SecurityScorecard 기반 보안 리스크 리포트 · ${esc(d.customer)} · ${esc(d.generatedAt)}</div>
 </div>
 <script>
 (function(){
-  var ids=['masthead','execpage','notice','overview'];
-  var summary=ids.map(function(id){return document.getElementById(id)}).filter(Boolean);
-  var detail=document.getElementById('detail');
+  var order=${orderJson};
+  var masthead=document.getElementById('masthead'), execp=document.getElementById('execpage'), overview=document.getElementById('overview'), detail=document.getElementById('detail');
   var items=Array.prototype.slice.call(document.querySelectorAll('.item'));
+  var cur='__cover__';
+  function hideAll(){ [masthead,execp,overview,detail].forEach(function(e){ if(e) e.style.display='none'; }); items.forEach(function(s){ s.classList.remove('active'); }); }
   function show(key){
-    if(key==='__cover__'){ summary.forEach(function(e){e.style.display=''}); detail.style.display='none'; items.forEach(function(s){s.classList.remove('active')}); window.scrollTo(0,0); return; }
-    var found=false;
-    items.forEach(function(s){ var on=s.getAttribute('data-key')===key; s.classList.toggle('active',on); if(on)found=true; });
-    summary.forEach(function(e){e.style.display='none'}); detail.style.display=found?'':'none'; window.scrollTo(0,0);
+    if(order.indexOf(key)<0) return;
+    hideAll(); cur=key;
+    if(key==='__cover__') masthead.style.display='';
+    else if(key==='__exec__') execp.style.display='';
+    else if(key==='__overview__') overview.style.display='';
+    else { detail.style.display=''; var it=null; items.forEach(function(s){ if(s.getAttribute('data-key')===key) it=s; }); if(it) it.classList.add('active'); }
+    window.scrollTo(0,0);
   }
   document.querySelectorAll('[data-goto]').forEach(function(el){ el.addEventListener('click',function(){ show(el.getAttribute('data-goto')); }); });
+  document.addEventListener('keydown',function(e){ var i=order.indexOf(cur); if(e.key==='ArrowRight'&&i<order.length-1)show(order[i+1]); if(e.key==='ArrowLeft'&&i>0)show(order[i-1]); });
   show('__cover__');
 })();
 </script>

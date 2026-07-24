@@ -1878,8 +1878,18 @@ export function DeliveryReportViewer({ custName, app }) {
   const exportReport = async () => {
     setExporting(true)
     try {
-      const names = Object.fromEntries((typeSummary || []).map((t) => [t.issue_type, catalogNameKo(t.issue_type)]))
-      const { blob, filename } = await exportReportHtml(custName, names)
+      const names = {}, extras = {}
+      for (const t of (typeSummary || [])) {
+        const it = t.issue_type
+        names[it] = catalogNameKo(it)
+        const eg = engineGuide(it)
+        extras[it] = {
+          whereToChange: catalogEntry(it)?.whereToChange || [],
+          engines: eg?.applies ? eg.engines.map((e) => ({ name: e.name, lang: e.lang, snippet: e.snippet })) : [],
+          versionNote: eg?.applies ? eg.versionNote : null
+        }
+      }
+      const { blob, filename } = await exportReportHtml(custName, names, extras)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a'); a.href = url; a.download = filename
       document.body.appendChild(a); a.click(); a.remove()

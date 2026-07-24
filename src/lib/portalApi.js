@@ -32,13 +32,13 @@ export const fetchSharedPack = (token) => call(`/api/public/shared/${encodeURICo
 
 // 리포트 HTML 내보내기(인증) — 자립형 단일 HTML 파일을 blob 으로 받아 다운로드.
 //  names: issue_type→한글명(백엔드 이미지엔 프론트 카탈로그가 없어 프론트가 전달).
-export async function exportReportHtml(customer, names = {}) {
+export async function exportReportHtml(customer, names = {}, extras = {}) {
   const base = import.meta.env.VITE_BACKEND_URL || ''
   const t = getAccessToken()
   const resp = await fetch(`${base}/api/portal/report-export`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
-    body: JSON.stringify({ customer, names })
+    body: JSON.stringify({ customer, names, extras })
   })
   if (!resp.ok) throw new Error(`export failed (HTTP ${resp.status})`)
   const blob = await resp.blob()
