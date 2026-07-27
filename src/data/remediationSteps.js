@@ -292,16 +292,26 @@ export const GUIDE_TYPE_META = {
 }
 
 // 조치 가이드 행(row) 메타 — 카탈로그 + GUIDE_TYPE_META 병합. 표/드로어 공용.
+// 심각도 변형 패밀리의 분류·위험도·영문명 (GUIDE_TYPE_META에 없는 변형까지 커버).
+function familyMeta(k) {
+  const sev = (String(k).match(/(critical|high|medium|low)/) || [])[1]
+  const sscSev = sev === 'critical' ? 'high' : (sev || 'medium')
+  if (/^service_vuln_host/.test(k)) return { category: '네트워크 보안', severity: sscSev, displayName: 'Vulnerability Detected on Host' }
+  if (/^patching_cadence/.test(k)) return { category: '패치 관리', severity: sscSev, displayName: 'Patching Cadence' }
+  return null
+}
+
 export function guideRowMeta(issueType) {
   const rep = repKey(issueType)
   const entry = catalogEntry(issueType)
   const m = GUIDE_TYPE_META[rep] || {}
+  const fm = familyMeta(rep) || {}
   return {
     key: rep,
     name: catalogNameKo(issueType),                 // 한글 명칭 (Risk Finding)
-    displayName: entry?.display_name || issueType,  // 영문 (Issue Type)
-    category: entry?.category || m.category || '—',
-    severity: entry?.severity || m.severity || null,
+    displayName: entry?.display_name || fm.displayName || issueType,  // 영문 (Issue Type)
+    category: entry?.category || m.category || fm.category || '—',
+    severity: entry?.severity || m.severity || fm.severity || null,
     difficulty: m.difficulty || '중간',
     impact: m.impact || '중간',
     kind: getRemediationGuide(issueType).kind       // 'catalog' | 'steps' | 'none'
