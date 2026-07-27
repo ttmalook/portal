@@ -129,7 +129,7 @@ function guideSection(it) {
   const wrap = checklistHtml(it) + '<p class="note">일반 구성 기준 조치 방향입니다. 운영 반영 전 고객 내부 검토·테스트가 필요하며, 해소 여부는 SecurityScorecard 재스캔으로 확인합니다.</p>'
   return step('01', '개요', overviewBody(it))
     + step('02', '조치 방법', fixBody(it))
-    + step('03', '확인', verify)
+    + step('03', '관측값 · 확인', verify)
     + step('04', '마무리', wrap)
 }
 
