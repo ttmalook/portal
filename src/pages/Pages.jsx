@@ -1888,12 +1888,14 @@ export function DeliveryReportViewer({ custName, app }) {
         const meta = guideRowMeta(it) || {}
         const comp = complianceRefFor(it, meta.category)
         const entry = catalogEntry(it)
-        const subVars = (s) => String(s || '').replace(/\{endpoint\}|\{host\}|\{domain\}/g, shownDomain || scoreDomain || '대상')
+        const rg = getRemediationGuide(it)
+        const dom = shownDomain || scoreDomain || '대상'
+        const subVars = (s) => String(s || '').replace(/\{endpoint\}|\{host\}|\{domain\}|<대상>|<도메인>/g, dom)
         extras[it] = {
-          whereToChange: entry?.whereToChange || [],
+          whereToChange: entry?.whereToChange || rg?.where || [],
           engines: eg?.applies ? eg.engines.map((e) => ({ name: e.label || e.name, file: e.file || null, snippet: e.snippet })) : [],
           versionNote: eg?.applies ? eg.versionNote : null,
-          verification: (entry?.verification || []).map(subVars),
+          verification: (rg?.verify || entry?.verification || []).map(subVars),
           configDiff: entry?.configDiff ? { label: entry.configDiff.label, file: entry.configDiff.file, lines: entry.configDiff.lines } : null,
           displayName: meta.displayName || null,
           difficulty: meta.difficulty || null,

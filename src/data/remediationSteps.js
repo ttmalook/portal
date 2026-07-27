@@ -142,6 +142,54 @@ server {
       '배포 후 SSC 재스캔으로 확인합니다.'
     ],
     verify: ['업그레이드 후 버전 배너·스캐너로 해당 CVE 미해당 확인']
+  },
+  x_powered_by_present: {
+    why: 'X-Powered-By 응답 헤더로 서버·프레임워크 종류와 버전이 노출되면, 공격자에게 알려진 취약점을 노리는 정보(공격 표면)를 그대로 제공하게 됩니다.',
+    where: ['웹서버/프록시 응답 헤더 설정', '애플리케이션 프레임워크 설정'],
+    steps: ['응답에서 X-Powered-By 헤더를 제거합니다(위 엔진별 적용 참고).', '프레임워크(Express 등)의 기술 노출 옵션을 비활성화합니다.', '배포 후 SSC 재스캔으로 확인합니다.'],
+    verify: ['curl -I https://<대상> 응답에 X-Powered-By 헤더가 없는지 확인']
+  },
+  server_version_exposed: {
+    why: 'Server 응답 헤더로 웹서버 종류·상세 버전이 노출되면, 특정 버전의 알려진 취약점을 겨냥한 공격에 악용될 수 있습니다.',
+    where: ['웹서버 토큰/시그니처 설정', '리버스 프록시/CDN 헤더 정책'],
+    steps: ['웹서버 버전 노출을 끕니다(nginx server_tokens off / Apache ServerTokens Prod·ServerSignature Off).', '업스트림이 내려주는 Server 헤더를 프록시에서 숨깁니다(위 엔진별 참고).', '배포 후 SSC 재스캔으로 확인합니다.'],
+    verify: ['curl -I https://<대상> 응답 Server 헤더에 상세 버전이 없는지 확인']
+  },
+  outdated_browser: {
+    why: '조직 자산/구성원이 지원 종료(EOL)된 브라우저로 접속한 흔적이 관측되었습니다. 보안 패치가 끊긴 브라우저는 알려진 취약점에 그대로 노출됩니다.',
+    where: ['엔드포인트 관리(MDM·그룹정책)', '자산 브라우저 인벤토리'],
+    steps: ['접속 자산의 브라우저 버전을 인벤토리로 확인합니다.', '최신 버전으로 강제 업데이트 정책을 적용하고 EOL 브라우저 접속을 차단합니다.', '엔드포인트 관리 도구로 준수 여부를 지속 점검합니다.', '조치 후 SSC 재스캔으로 확인합니다.'],
+    verify: ['엔드포인트 관리 도구/자산 인벤토리에서 지원 종료 브라우저가 없는지 확인 후 SSC 재스캔']
+  },
+  pva_installation_trail: {
+    why: '알려진 취약점을 가질 수 있는 애플리케이션(Potentially Vulnerable Application) 설치 흔적이 관측되었습니다. 방치 시 해당 취약점이 악용될 수 있습니다.',
+    where: ['해당 호스트/자산', '소프트웨어 자산 관리'],
+    steps: ['SSC 관측값에서 해당 애플리케이션·버전을 식별합니다.', '보안 패치·최신 버전으로 업그레이드하거나 불필요하면 제거합니다.', '소프트웨어 자산 목록과 패치 주기를 갱신합니다.', '조치 후 SSC 재스캔으로 확인합니다.'],
+    verify: ['해당 호스트에서 애플리케이션 버전 확인·취약점 스캐너 재검 후 SSC 재스캔']
+  },
+  cdn_hosting: {
+    why: '콘텐츠가 CDN을 통해 제공되는 것이 관측되었습니다(정보성). 그 자체가 취약점은 아니나, CDN·오리진의 보안 설정(TLS·WAF·오리진 보호)이 적정한지 확인이 필요합니다.',
+    where: ['CDN 관리 콘솔', '오리진 서버 접근 통제'],
+    steps: ['CDN의 TLS·WAF·보안 헤더 설정을 점검합니다.', '오리진 서버가 CDN을 우회해 직접 노출되지 않는지(오리진 IP 은닉·접근 제한) 확인합니다.', '필요 시 오리진 보호(Origin Shield/방화벽 화이트리스트)를 적용합니다.'],
+    verify: ['CDN 콘솔에서 TLS·WAF 활성 확인 · 오리진 직접 접근 차단 확인 후 SSC 재스캔']
+  },
+  patching_cadence_v3_critical: {
+    why: '치명적(Critical) 심각도의 알려진 취약점(CVE)이 패치되지 않은 상태로 관측되었습니다. 즉시 악용 가능성이 높아 최우선 조치가 필요합니다.',
+    where: ['영향 호스트/소프트웨어', '패치 관리 체계'],
+    steps: ['SSC 관측값에서 영향 자산과 해당 CVE를 식별합니다.', '벤더 보안 패치/업데이트를 즉시 적용합니다(긴급 변경 절차).', '재발 방지를 위한 패치 관리 주기·취약점 스캔 체계를 수립합니다.', '조치 후 취약점 스캐너·SSC 재스캔으로 해소를 확인합니다.'],
+    verify: ['취약점 스캐너로 해당 CVE 미해당 확인 · 버전 배너 확인 후 SSC 재스캔']
+  },
+  service_vuln_host_medium: {
+    why: '알려진 취약점(중간 심각도)을 가진 호스트가 외부에 노출된 것으로 관측되었습니다. 방치 시 취약점 연계 공격의 진입점이 될 수 있습니다.',
+    where: ['해당 호스트/서비스', '방화벽·접근 통제'],
+    steps: ['SSC 관측값에서 취약 호스트·서비스·버전을 식별합니다.', '보안 패치·업그레이드를 적용합니다.', '외부 노출이 불필요하면 방화벽/보안그룹에서 차단하거나 내부망으로 이전합니다.', '조치 후 스캐너·SSC 재스캔으로 확인합니다.'],
+    verify: ['취약점 스캐너 재검으로 해당 취약점 해소 확인 후 SSC 재스캔']
+  },
+  service_vuln_host_v3_critical: {
+    why: '치명적(Critical) 심각도의 알려진 취약점을 가진 호스트가 외부에 노출된 것으로 관측되었습니다. 즉시 악용 위험이 높습니다.',
+    where: ['해당 호스트/서비스', '방화벽·접근 통제'],
+    steps: ['SSC 관측값에서 취약 호스트·서비스·CVE를 식별합니다.', '벤더 패치/업그레이드를 즉시 적용합니다.', '외부 노출이 불필요하면 방화벽에서 즉시 차단합니다.', '조치 후 스캐너·SSC 재스캔으로 해소를 확인합니다.'],
+    verify: ['취약점 스캐너 재검으로 해당 CVE 미해당 확인 후 SSC 재스캔']
   }
 }
 
@@ -208,6 +256,14 @@ export const GUIDE_TYPE_META = {
   insecure_https_redirect_pattern: { severity: 'medium', category: 'TLS/Certificate', difficulty: '낮음', impact: '중간' },
   redirect_chain_contains_http: { severity: 'medium', category: 'TLS/Certificate', difficulty: '낮음', impact: '중간' },
   hosted_on_object_storage: { severity: 'low', category: '정보보호 일반', difficulty: '중간', impact: '중간' },
+  x_powered_by_present: { severity: 'low', category: 'HTTP/Web Header', difficulty: '낮음', impact: '낮음' },
+  server_version_exposed: { severity: 'low', category: 'HTTP/Web Header', difficulty: '낮음', impact: '낮음' },
+  outdated_browser: { severity: 'medium', category: '엔드포인트 보안', difficulty: '중간', impact: '중간' },
+  pva_installation_trail: { severity: 'medium', category: '패치 관리', difficulty: '중간', impact: '중간' },
+  cdn_hosting: { severity: 'info', category: '정보보호 일반', difficulty: '낮음', impact: '낮음' },
+  patching_cadence_v3_critical: { severity: 'high', category: '패치 관리', difficulty: '중간', impact: '높음' },
+  service_vuln_host_medium: { severity: 'medium', category: '네트워크 보안', difficulty: '중간', impact: '중간' },
+  service_vuln_host_v3_critical: { severity: 'high', category: '네트워크 보안', difficulty: '중간', impact: '높음' },
   compromised_credentials_found: { severity: 'low', category: '계정 보안', difficulty: '중간', impact: '높음' },
   service_pop3: { severity: 'medium', category: '네트워크 보안', difficulty: '중간', impact: '중간' },
   service_vuln_host_v3_medium: { severity: 'low', category: '패치 관리', difficulty: '중간', impact: '높음' }
