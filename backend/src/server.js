@@ -890,9 +890,13 @@ app.post('/api/portal/report-export', async (req, res) => {
     && (p.customer === customer || hostOfDom(p.sscLookupDomain || p.domain) === hostOfDom(scoreDomain)))
   const runByCanon = {}
   await Promise.all(labPacks.map(async (p) => { const run = await lab.getRun(p.labRunId).catch(() => null); if (run) runByCanon[canonType(p.issueType)] = run }))
+  // SSC 공식 카탈로그(display_name·factor) — 한글명 없는 유형의 이름/분류 폴백(원문키·humanize 방지).
+  const cat = await getIssueTypeCatalog({ force: false }).catch(() => null)
+  const byKey = (cat && cat.byKey) || {}
+  const hasHangul = (s) => /[가-힣]/.test(String(s || ''))
   const items = await Promise.all(summary.map(async (t) => {
     const key = t.issue_type
-    const name = names[key] || humanizeKey(key)
+    const name = hasHangul(names[key]) ? names[key] : (byKey[key]?.display_name || names[key] || humanizeKey(key))
     const ex = extras[key] || {}
     const apply = { whereToChange: ex.whereToChange || [], engines: ex.engines || [], versionNote: ex.versionNote || null, verification: ex.verification || [] }
     const aiSummary = await peekInterpretation(key).catch(() => null) // 점검 때 캐시된 쉬운말 해석 재사용(생성 안 함)
@@ -910,7 +914,7 @@ app.post('/api/portal/report-export', async (req, res) => {
     }
     const g = GUIDES[guideKey(key)] || {}
     return { key, name, severity: t.severity, scoreImpact: t.score_impact, kind: 'guide',
-      category: ex.category || t.factor || null, apply, overview, configDiff: ex.configDiff || null,
+      category: ex.category || byKey[key]?.factor || t.factor || null, apply, overview, configDiff: ex.configDiff || null,
       guide: { direction: g.direction, steps: g.steps, sscRec: t.ssc_recommendation, sscDesc: t.ssc_description } }
   }))
   const html = buildReportHtml({ customer, domain: scoreDomain, shownDomain, score, grade, generatedAt: new Date().toISOString().slice(0, 10), fontDataUri: fontDataUri(), items, factors, dist })
