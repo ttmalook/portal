@@ -235,12 +235,20 @@ function familyGuide(rep) {
     verify: ['취약점 스캐너로 해당 CVE 미해당 확인 · 버전 배너 확인 후 SSC 재스캔'],
     example: { lang: 'bash', code: '# 미적용 보안 업데이트·CVE 식별\napt list --upgradable            # Debian/Ubuntu\nyum check-update                 # RHEL/CentOS\n\n# 보안 업데이트 적용 (벤더별 상이)\napt update && apt upgrade\nyum update --security' }
   }
-  // 위협 인텔/침해 계열 — 설정 미비가 아니라 능동적 침해 지표. 침해대응(격리·조사·정리) 가이드.
-  if (/(cobalt_strike|malware|botnet|c2_service|_c2_|ransomware|trojan|hacker_chatter|phishing|spam_propagation|infection|exploited)/.test(k)) return {
-    why: '해당 자산이 공격자 인프라(C2)·멀웨어와 통신하거나 침해된 정황이 관측된 것으로, 설정 미비가 아니라 능동적 침해 지표입니다. 즉시 침해대응(격리·조사)이 필요합니다.',
-    where: ['해당 자산(엔드포인트/서버)', 'EDR·백신', '네트워크 경계(방화벽·프록시)'],
-    steps: ['해당 자산을 네트워크에서 즉시 격리하고 관련 계정·세션을 차단합니다.', 'EDR/방화벽/프록시 로그로 C2 통신·감염 범위·유입 경로를 조사합니다.', '멀웨어·백도어를 제거하고 필요 시 신뢰 이미지로 재구축합니다.', '침해된 자격증명을 회수·재발급하고 IOC(도메인·IP·해시)를 차단 목록에 등록합니다.', '조치 후 SSC 재스캔·위협 인텔로 잔존 여부를 확인합니다.'],
-    verify: ['EDR/방화벽 로그에서 C2 통신 중단 확인 · 위협 인텔 재조회 · SSC 재스캔']
+  // 확정 침해(active) — 자산이 실제 감염·C2 통신. 침해사고 대응(격리·조사·복구).
+  if (/(cobalt_strike|malware|botnet|c2_service|_c2_|ransomware|trojan|_infection|exploited|backdoor|keylogger)/.test(k)) return {
+    why: '자산이 공격자 인프라(C2)와 통신하는 침해 정황입니다. 침해사고 대응 대상입니다. 필요 시 외부 침해대응(IR)을 검토하십시오.',
+    where: ['감염 의심 자산(엔드포인트/서버)', 'EDR·백신, 네트워크 경계(방화벽·프록시·DNS)'],
+    steps: ['감염 자산을 네트워크에서 즉시 격리하고 관련 계정·세션·API 키를 차단합니다.', '관측된 IOC(C2 도메인·IP·해시)를 방화벽·프록시·DNS·EDR에 차단 등록합니다.', 'EDR·방화벽·프록시 로그로 C2 통신·감염 범위·최초 유입 경로를 조사합니다.', '멀웨어·백도어·지속성(스케줄러·서비스·계정)을 제거하고, 필요 시 신뢰 이미지로 재구축합니다.', '침해 자격증명을 회수·재발급하고 탐지·모니터링을 강화한 뒤 SecurityScorecard 재스캔으로 잔존 여부를 확인합니다.'],
+    verify: ['EDR·방화벽 로그에서 C2 통신 중단 확인 · 위협 인텔 재조회 · SecurityScorecard 재스캔'],
+    example: { lang: 'bash', code: '# 관측된 IOC 차단 (C2 IP/도메인)\niptables -A OUTPUT -d <C2_IP> -j DROP           # 아웃바운드 C2 차단\n# 프록시/DNS 싱크홀에서 <C2_도메인> 차단\n\n# 감염 자산 격리 (EDR 네트워크 격리 기능 또는 스위치/VLAN 격리)\n# 관련 계정 비활성화·세션 강제 종료·자격증명 회수\n\n# 조사: 로그에서 C2 통신 흔적 확인\ngrep -Ei "<C2_IP>|<C2_도메인>" /var/log/*' }
+  }
+  // 노출/시그널(passive) — 확정 침해 아님. 모니터링·축소·강화.
+  if (/(hacker_chatter|attack_surface|spam_propagation|phishing|typosquat|threat_actor)/.test(k)) return {
+    why: '다크웹·해커 포럼 등에서 조직 관련 언급(유출 자격증명·공격 계획 등)이 관측된 정황입니다. 확정 침해는 아니나 노출 축소와 모니터링 강화가 필요합니다.',
+    where: ['관련 계정·자격증명', '외부 노출 자산·서비스, 모니터링 체계'],
+    steps: ['관측된 언급 맥락(유출 자격증명·노출 자산·대상)을 확인합니다.', '관련 계정 비밀번호 재설정·MFA 강제, 유출 의심 자격증명을 회수합니다.', '불필요한 외부 노출 자산·서비스를 축소·차단합니다.', '이상 로그인·접근 탐지 알림을 강화하고 일정 기간 모니터링합니다.', 'SecurityScorecard 재스캔으로 언급 해소 여부를 확인합니다.'],
+    verify: ['이상 로그인·접근 알림 동작 확인 · SecurityScorecard 재스캔']
   }
   return null
 }
@@ -307,7 +315,8 @@ function familyMeta(k) {
   const sscSev = sev === 'critical' ? 'high' : (sev || 'medium')
   if (/^service_vuln_host/.test(k)) return { category: '네트워크 보안', severity: sscSev, displayName: 'Vulnerability Detected on Host' }
   if (/^patching_cadence/.test(k)) return { category: '패치 관리', severity: sscSev, displayName: 'Patching Cadence' }
-  if (/(cobalt_strike|malware|botnet|c2_service|_c2_|ransomware|trojan|hacker_chatter|phishing|spam_propagation|infection|exploited)/.test(k)) return { category: '위협 인텔/침해', severity: 'high' }
+  if (/(cobalt_strike|malware|botnet|c2_service|_c2_|ransomware|trojan|_infection|exploited|backdoor|keylogger)/.test(k)) return { category: '위협 인텔/침해', severity: 'high' }
+  if (/(hacker_chatter|attack_surface|spam_propagation|phishing|typosquat|threat_actor)/.test(k)) return { category: '위협 인텔', severity: 'medium' }
   return null
 }
 
