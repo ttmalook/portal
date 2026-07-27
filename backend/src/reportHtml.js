@@ -50,6 +50,7 @@ function overviewBody(it) {
   const ov = it.overview || {}
   const parts = []
   parts.push(`<div class="ov-meta"><span>Issue Type <b>${esc(ov.displayName || it.name)}</b></span><span>유형 키 <b>${esc(it.key)}</b></span></div>`)
+  if (ov.aiSummary) parts.push(`<div class="ai-box"><div class="ai-t">쉬운 말 요약 · 자동 해석</div><p>${esc(ov.aiSummary)}</p></div>`)
   const chips = [`<span class="chip">항목: ${esc(it.name)}</span>`, `<span class="chip" style="background:${sevColor(sev)}1a;color:${sevColor(sev)}">위험도: ${esc(SEV_KO[sev] || it.severity || '-')}</span>`]
   if (it.category) chips.push(`<span class="chip">분류: ${esc(it.category)}</span>`)
   if (ov.difficulty) chips.push(`<span class="chip">조치 난이도: ${esc(ov.difficulty)}</span>`)
@@ -322,7 +323,10 @@ table.diff tr.changed{background:#fafcff}
 .steps li{margin:4px 0}
 .muted{color:#64748b}
 .note{font-size:12px;color:#64748b;border-left:3px solid #cbd5e1;padding:6px 12px;margin-top:14px;background:#f8fafc;border-radius:0 8px 8px 0}
-.foot{margin-top:24px;font-size:11.5px;color:#94a3b8;text-align:center}
+.foot{display:none}
+.ai-box{background:#f2f6fc;border-left:3px solid #4a7fb5;border-radius:0 8px 8px 0;padding:12px 16px;margin:12px 0}
+.ai-t{font-size:12px;font-weight:700;color:#2c5686;margin-bottom:5px}
+.ai-box p{margin:0;color:#334155;line-height:1.7}
 @media(max-width:640px){.ba{grid-template-columns:1fr}}
 @media print{
   body{background:#fff}

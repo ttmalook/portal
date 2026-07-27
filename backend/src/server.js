@@ -25,7 +25,7 @@ import { requireAdmin, requirePerm, stampOwner, visibleTo } from './authz.js'
 import { validateBody, customerCreate, customerUpdate, domainCreate, domainUpdate } from './validate.js'
 import { openapiSpec } from './openapi.js'
 import { recordAudit, listAudit, seedAuditIfEmpty } from './auditStore.js'
-import { interpret as interpretGuide } from './guideInterpret.js'
+import { interpret as interpretGuide, peekInterpretation } from './guideInterpret.js'
 import { loadSscTokenOverride, setSscToken, clearSscToken, sscTokenStatus, loadClaudeKeyOverride, setClaudeKey, clearClaudeKey, claudeKeyStatus } from './settingsStore.js'
 import { loadActiveRecipes, listRecipes, getRecipeById, addCandidate, setStaging, clearStaging, recordGate, adoptRecipe, deleteRecipe, activeRecipeIssueTypes } from './labRecipes.js'
 import { getIssueTypeCatalog } from './securityScorecardIssueCollector.js'
@@ -880,7 +880,8 @@ app.post('/api/portal/report-export', async (req, res) => {
     const name = names[key] || key
     const ex = extras[key] || {}
     const apply = { whereToChange: ex.whereToChange || [], engines: ex.engines || [], versionNote: ex.versionNote || null }
-    const overview = { displayName: ex.displayName || null, difficulty: ex.difficulty || null, impact: ex.impact || null, why: ex.why || null, compliance: ex.compliance || null }
+    const aiSummary = await peekInterpretation(key).catch(() => null) // 점검 때 캐시된 쉬운말 해석 재사용(생성 안 함)
+    const overview = { displayName: ex.displayName || null, difficulty: ex.difficulty || null, impact: ex.impact || null, why: ex.why || null, compliance: ex.compliance || null, aiSummary }
     const run = runByCanon[canonType(key)]
     if (run && run.status === 'succeeded' && run.evidence) {
       const ev = run.evidence

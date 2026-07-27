@@ -59,6 +59,15 @@ async function callOllama(systemPrompt, userContent) {
   } finally { clearTimeout(timer) }
 }
 
+// 캐시된 해석만 조회(생성 안 함) — 리포트 내보내기에서 점검 때 만들어 둔 해석을 재사용.
+export async function peekInterpretation(key, kind = 'risk') {
+  const rep = String(key || '').toLowerCase().replace(/_v\d+$/, '')
+  if (!rep) return null
+  const cacheKey = kind === 'risk' ? rep : `${rep}:${kind}`
+  const cached = await getCache(cacheKey)
+  return cached && cached.text ? cached.text : null
+}
+
 // 유형(key) 기준 해석. kind='risk'(기술 why→비즈니스 위험) | 'remediation'(SSC 조치 방법→쉬운 조치).
 // 입력(text 우선, 없으면 why) 없으면 null(프론트가 해석 섹션 생략). 실패 시 throw.
 export async function interpret({ key, name, why, text, kind = 'risk', force = false }) {
