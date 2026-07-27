@@ -212,7 +212,7 @@ export function getRemediationGuide(issueType) {
     }
   }
   const fam = familyGuide(rep)
-  if (fam) return { issueType, title, kind: 'steps', why: fam.why, where: fam.where, steps: fam.steps, verify: fam.verify }
+  if (fam) return { issueType, title, kind: 'steps', why: fam.why, where: fam.where, steps: fam.steps, verify: fam.verify, example: fam.example || null }
   return { issueType, title, kind: 'none' }
 }
 
@@ -225,13 +225,15 @@ function familyGuide(rep) {
     why: `알려진 취약점(${sevKo} 심각도)을 가진 호스트가 외부에 노출된 것으로 관측되었습니다. 방치 시 취약점 연계 공격의 진입점이 될 수 있습니다.`,
     where: ['해당 호스트/서비스', '방화벽·접근 통제'],
     steps: ['SSC 관측값에서 취약 호스트·서비스·버전(CVE)을 식별합니다.', '보안 패치·업그레이드를 적용합니다.', '외부 노출이 불필요하면 방화벽/보안그룹에서 차단하거나 내부망으로 이전합니다.', '조치 후 취약점 스캐너·SSC 재스캔으로 확인합니다.'],
-    verify: ['취약점 스캐너 재검으로 해당 취약점 해소 확인 후 SSC 재스캔']
+    verify: ['취약점 스캐너 재검으로 해당 취약점 해소 확인 후 SSC 재스캔'],
+    example: { lang: 'bash', code: '# 취약 서비스·버전 식별\nnmap -sV -p <포트> <대상>\n\n# 노출이 불필요하면 방화벽에서 차단 (예)\nufw deny <포트>/tcp                 # Ubuntu(ufw)\niptables -A INPUT -p tcp --dport <포트> -j DROP\n# 클라우드는 보안그룹/NACL 에서 해당 포트 인바운드 제거\n\n# 패치: OS/소프트웨어 보안 업데이트 (벤더별 상이)\napt update && apt upgrade <패키지>   # 예: Debian/Ubuntu' }
   }
   if (/^patching_cadence/.test(k)) return {
     why: `${sevKo} 심각도의 알려진 취약점(CVE)이 패치되지 않은 상태로 관측되었습니다. 방치 시 악용 위험이 있습니다.`,
     where: ['영향 호스트/소프트웨어', '패치 관리 체계'],
     steps: ['SSC 관측값에서 영향 자산과 해당 CVE를 식별합니다.', '벤더 보안 패치/업데이트를 적용합니다.', '재발 방지를 위한 패치 관리 주기·취약점 스캔 체계를 수립합니다.', '조치 후 취약점 스캐너·SSC 재스캔으로 해소를 확인합니다.'],
-    verify: ['취약점 스캐너로 해당 CVE 미해당 확인 · 버전 배너 확인 후 SSC 재스캔']
+    verify: ['취약점 스캐너로 해당 CVE 미해당 확인 · 버전 배너 확인 후 SSC 재스캔'],
+    example: { lang: 'bash', code: '# 미적용 보안 업데이트·CVE 식별\napt list --upgradable            # Debian/Ubuntu\nyum check-update                 # RHEL/CentOS\n\n# 보안 업데이트 적용 (벤더별 상이)\napt update && apt upgrade\nyum update --security' }
   }
   // 위협 인텔/침해 계열 — 설정 미비가 아니라 능동적 침해 지표. 침해대응(격리·조사·정리) 가이드.
   if (/(cobalt_strike|malware|botnet|c2_service|_c2_|ransomware|trojan|hacker_chatter|phishing|spam_propagation|infection|exploited)/.test(k)) return {

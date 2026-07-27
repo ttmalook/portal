@@ -1897,6 +1897,7 @@ export function DeliveryReportViewer({ custName, app }) {
           versionNote: eg?.applies ? eg.versionNote : null,
           verification: (rg?.verify || entry?.verification || []).map(subVars),
           configDiff: entry?.configDiff ? { label: entry.configDiff.label, file: entry.configDiff.file, lines: entry.configDiff.lines } : null,
+          example: rg?.example ? { lang: rg.example.lang, code: subVars(rg.example.code) } : null,
           steps: (rg?.steps && rg.steps.length ? rg.steps : null),
           displayName: meta.displayName || null,
           difficulty: meta.difficulty || null,

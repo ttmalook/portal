@@ -914,7 +914,7 @@ app.post('/api/portal/report-export', async (req, res) => {
     }
     const g = GUIDES[guideKey(key)] || {}
     return { key, name, severity: t.severity, scoreImpact: t.score_impact, kind: 'guide',
-      category: ex.category || byKey[key]?.factor || t.factor || null, apply, overview, configDiff: ex.configDiff || null,
+      category: ex.category || byKey[key]?.factor || t.factor || null, apply, overview, configDiff: ex.configDiff || null, example: ex.example || null,
       guide: { direction: g.direction || null, steps: (g.steps && g.steps.length ? g.steps : ex.steps) || null, sscRec: t.ssc_recommendation, sscDesc: t.ssc_description } }
   }))
   const html = buildReportHtml({ customer, domain: scoreDomain, shownDomain, score, grade, generatedAt: new Date().toISOString().slice(0, 10), fontDataUri: fontDataUri(), items, factors, dist })

@@ -84,6 +84,7 @@ function fixBody(it) {
   }
   if (it.sourceDiff) parts.push(`<div class="mini-t">실제 소스 변경 (검증랩 타깃의 취약 → 조치)</div>${sourceDiffHtml(it.sourceDiff)}`)
   else if (it.configDiff) parts.push(`<div class="mini-t">설정 변경 예시</div><p class="muted">아래는 실제 설정에서 추가(+)/삭제(−)할 부분의 예시입니다(환경마다 경로·형식은 다를 수 있습니다).</p>${sourceDiffHtml(it.configDiff)}`)
+  else if (it.example && it.example.code) parts.push(`<div class="mini-t">조치 예시 <span class="cnote">(참고 · 환경마다 다름)</span></div><pre class="log">${esc(it.example.code)}</pre>`)
   if (Array.isArray(ap.engines) && ap.engines.length) {
     const eng = ap.engines.map((e) => `<div class="eng"><div class="eng-h">${esc(e.name || '')}${e.file ? ` · ${esc(e.file)}` : e.lang ? ` · ${esc(e.lang)}` : ''}</div><pre class="eng-c">${esc(e.snippet)}</pre></div>`).join('')
     parts.push(`<div class="mini-t">고객 환경 적용 방법 (엔진별)</div><p class="muted">고객 웹 엔진에 맞는 설정을 적용하세요.</p>${eng}${ap.versionNote ? `<p class="vnote">${esc(ap.versionNote)}</p>` : ''}`)
