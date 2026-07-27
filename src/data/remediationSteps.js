@@ -233,6 +233,13 @@ function familyGuide(rep) {
     steps: ['SSC 관측값에서 영향 자산과 해당 CVE를 식별합니다.', '벤더 보안 패치/업데이트를 적용합니다.', '재발 방지를 위한 패치 관리 주기·취약점 스캔 체계를 수립합니다.', '조치 후 취약점 스캐너·SSC 재스캔으로 해소를 확인합니다.'],
     verify: ['취약점 스캐너로 해당 CVE 미해당 확인 · 버전 배너 확인 후 SSC 재스캔']
   }
+  // 위협 인텔/침해 계열 — 설정 미비가 아니라 능동적 침해 지표. 침해대응(격리·조사·정리) 가이드.
+  if (/(cobalt_strike|malware|botnet|c2_service|_c2_|ransomware|trojan|hacker_chatter|phishing|spam_propagation|infection|exploited)/.test(k)) return {
+    why: '해당 자산이 공격자 인프라(C2)·멀웨어와 통신하거나 침해된 정황이 관측된 것으로, 설정 미비가 아니라 능동적 침해 지표입니다. 즉시 침해대응(격리·조사)이 필요합니다.',
+    where: ['해당 자산(엔드포인트/서버)', 'EDR·백신', '네트워크 경계(방화벽·프록시)'],
+    steps: ['해당 자산을 네트워크에서 즉시 격리하고 관련 계정·세션을 차단합니다.', 'EDR/방화벽/프록시 로그로 C2 통신·감염 범위·유입 경로를 조사합니다.', '멀웨어·백도어를 제거하고 필요 시 신뢰 이미지로 재구축합니다.', '침해된 자격증명을 회수·재발급하고 IOC(도메인·IP·해시)를 차단 목록에 등록합니다.', '조치 후 SSC 재스캔·위협 인텔로 잔존 여부를 확인합니다.'],
+    verify: ['EDR/방화벽 로그에서 C2 통신 중단 확인 · 위협 인텔 재조회 · SSC 재스캔']
+  }
   return null
 }
 
@@ -298,6 +305,7 @@ function familyMeta(k) {
   const sscSev = sev === 'critical' ? 'high' : (sev || 'medium')
   if (/^service_vuln_host/.test(k)) return { category: '네트워크 보안', severity: sscSev, displayName: 'Vulnerability Detected on Host' }
   if (/^patching_cadence/.test(k)) return { category: '패치 관리', severity: sscSev, displayName: 'Patching Cadence' }
+  if (/(cobalt_strike|malware|botnet|c2_service|_c2_|ransomware|trojan|hacker_chatter|phishing|spam_propagation|infection|exploited)/.test(k)) return { category: '위협 인텔/침해', severity: 'high' }
   return null
 }
 
