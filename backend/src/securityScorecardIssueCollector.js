@@ -188,7 +188,7 @@ export async function getIssueTypeDetail(type) {
 }
 
 // 5) 도메인 전체 수집 오케스트레이션 (factors-first → active-issues 배치 → 정규화 [→ 권고 보강])
-export async function collectRiskFindingsForDomain(domain, { batchSize = 10, enrich = false } = {}) {
+export async function collectRiskFindingsForDomain(domain, { batchSize = 10, enrich = false, fullText = false } = {}) {
   const catalog = await getIssueTypeCatalog()
   if (!catalog.ok) return { ok: false, error: catalog.error }
   const factorMeta = await getFactorMetadataCatalog()
@@ -222,7 +222,10 @@ export async function collectRiskFindingsForDomain(domain, { batchSize = 10, enr
     const distinct = [...new Set([...findings.map((f) => f.issue_type), ...active.types.map((t) => t.type)])]
     for (const t of distinct) {
       const dt = await getIssueTypeDetail(t)
-      if (dt.ok) recByType[t] = { recommendation: clampText(dt.recommendation, 900), description: clampText(dt.shortDescription || dt.description, 500) }
+      // 리포트(fullText)는 원문 전체, 컴팩트 UI는 축약(clamp).
+      if (dt.ok) recByType[t] = fullText
+        ? { recommendation: cleanText(dt.recommendation), description: cleanText(dt.description || dt.shortDescription) }
+        : { recommendation: clampText(dt.recommendation, 900), description: clampText(dt.shortDescription || dt.description, 500) }
       await sleep(120)
     }
     for (const f of findings) {
@@ -265,6 +268,7 @@ function tldOf(host) { const p = String(host || '').split('.'); return p.length 
 function hostOfUrl(u) { try { return new URL(u).host } catch { return null } }
 function summarizeText(t) { if (!t) return null; const s = String(t).replace(/\s+/g, ' ').trim(); return s.length > 180 ? s.slice(0, 180) + '…' : s }
 function clampText(t, max = 500) { if (!t) return null; const s = String(t).replace(/[ \t]+/g, ' ').trim(); return s.length > max ? s.slice(0, max) + '…' : s }
+function cleanText(t) { if (!t) return null; const s = String(t).replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim(); return s || null }
 
 export function maskDomain(domain) { if (!domain) return null; const t = tldOf(domain); return t ? `***.${t}` : '***' }
 

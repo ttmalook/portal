@@ -821,6 +821,8 @@ app.get('/api/public/shared/:token', rateLimit({ windowMs: 60000, max: 30 }), as
 
 const hostOfDom = (s) => String(s || '').replace(/^https?:\/\//, '').split('/')[0].split(':')[0].toLowerCase()
 const canonType = (k) => String(k || '').toLowerCase().replace(/_v\d+$/, '')
+// 프론트가 한글명을 못 보낸 경우 최후 폴백 — 스네이크케이스 원문키가 그대로 노출되지 않게.
+const humanizeKey = (k) => String(k || '').replace(/_v\d+$/, '').split('_').filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || '기타 리스크'
 
 // Pretendard 폰트를 data URI 로 1회 로드(캐시). 없으면 시스템 폰트 폴백.
 let _fontUri
@@ -864,7 +866,7 @@ app.post('/api/portal/report-export', async (req, res) => {
   if (!scoreDomain) return res.status(404).json({ ok: false, message: 'no domain for customer' })
   let score = null, grade = null, summary = []
   try {
-    const r = await collectRiskFindingsForDomain(scoreDomain, { batchSize: 10, enrich: true })
+    const r = await collectRiskFindingsForDomain(scoreDomain, { batchSize: 10, enrich: true, fullText: true })
     score = r.score; grade = r.grade
     summary = (r.issueTypeSummary || []).filter((t) => String(t.severity).toLowerCase() !== 'info')
   } catch { /* SSC 실패 → 요약 없이 증적만 */ }
@@ -877,7 +879,7 @@ app.post('/api/portal/report-export', async (req, res) => {
   await Promise.all(labPacks.map(async (p) => { const run = await lab.getRun(p.labRunId).catch(() => null); if (run) runByCanon[canonType(p.issueType)] = run }))
   const items = await Promise.all(summary.map(async (t) => {
     const key = t.issue_type
-    const name = names[key] || key
+    const name = names[key] || humanizeKey(key)
     const ex = extras[key] || {}
     const apply = { whereToChange: ex.whereToChange || [], engines: ex.engines || [], versionNote: ex.versionNote || null }
     const aiSummary = await peekInterpretation(key).catch(() => null) // 점검 때 캐시된 쉬운말 해석 재사용(생성 안 함)

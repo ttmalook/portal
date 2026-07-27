@@ -1878,8 +1878,10 @@ export function DeliveryReportViewer({ custName, app }) {
   const exportReport = async () => {
     setExporting(true)
     try {
+      // 내보내기 시점에 요약이 아직 안 실렸으면(레이스) 원문키가 노출되므로 보장 로드.
+      const ts = (typeSummary && typeSummary.length) ? typeSummary : (await getIssueTypeSummary(scoreDomain).catch(() => []) || [])
       const names = {}, extras = {}
-      for (const t of (typeSummary || [])) {
+      for (const t of ts) {
         const it = t.issue_type
         names[it] = catalogNameKo(it)
         const eg = engineGuide(it)
