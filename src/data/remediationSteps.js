@@ -211,7 +211,29 @@ export function getRemediationGuide(issueType) {
       verify: entry.verification || []
     }
   }
+  const fam = familyGuide(rep)
+  if (fam) return { issueType, title, kind: 'steps', why: fam.why, where: fam.where, steps: fam.steps, verify: fam.verify }
   return { issueType, title, kind: 'none' }
+}
+
+// 심각도 변형이 많은 패밀리(service_vuln_host_*, patching_cadence_*)를 패턴으로 일괄 커버.
+const SEV_KO_SUFFIX = { critical: '심각', high: '높음', medium: '중간', low: '낮음' }
+function familyGuide(rep) {
+  const k = String(rep || '').toLowerCase()
+  const sevKo = SEV_KO_SUFFIX[(k.match(/(critical|high|medium|low)/) || [])[1]] || '해당'
+  if (/^service_vuln_host/.test(k)) return {
+    why: `알려진 취약점(${sevKo} 심각도)을 가진 호스트가 외부에 노출된 것으로 관측되었습니다. 방치 시 취약점 연계 공격의 진입점이 될 수 있습니다.`,
+    where: ['해당 호스트/서비스', '방화벽·접근 통제'],
+    steps: ['SSC 관측값에서 취약 호스트·서비스·버전(CVE)을 식별합니다.', '보안 패치·업그레이드를 적용합니다.', '외부 노출이 불필요하면 방화벽/보안그룹에서 차단하거나 내부망으로 이전합니다.', '조치 후 취약점 스캐너·SSC 재스캔으로 확인합니다.'],
+    verify: ['취약점 스캐너 재검으로 해당 취약점 해소 확인 후 SSC 재스캔']
+  }
+  if (/^patching_cadence/.test(k)) return {
+    why: `${sevKo} 심각도의 알려진 취약점(CVE)이 패치되지 않은 상태로 관측되었습니다. 방치 시 악용 위험이 있습니다.`,
+    where: ['영향 호스트/소프트웨어', '패치 관리 체계'],
+    steps: ['SSC 관측값에서 영향 자산과 해당 CVE를 식별합니다.', '벤더 보안 패치/업데이트를 적용합니다.', '재발 방지를 위한 패치 관리 주기·취약점 스캔 체계를 수립합니다.', '조치 후 취약점 스캐너·SSC 재스캔으로 해소를 확인합니다.'],
+    verify: ['취약점 스캐너로 해당 CVE 미해당 확인 · 버전 배너 확인 후 SSC 재스캔']
+  }
+  return null
 }
 
 export function hasRemediationGuide(issueType) {

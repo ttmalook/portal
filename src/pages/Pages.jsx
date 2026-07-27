@@ -1897,11 +1897,12 @@ export function DeliveryReportViewer({ custName, app }) {
           versionNote: eg?.applies ? eg.versionNote : null,
           verification: (rg?.verify || entry?.verification || []).map(subVars),
           configDiff: entry?.configDiff ? { label: entry.configDiff.label, file: entry.configDiff.file, lines: entry.configDiff.lines } : null,
+          steps: (rg?.steps && rg.steps.length ? rg.steps : null),
           displayName: meta.displayName || null,
           difficulty: meta.difficulty || null,
           impact: meta.impact || null,
           category: meta.category || null,
-          why: meta.why || catalogEntry(it)?.why || null,
+          why: meta.why || entry?.why || rg?.why || null,
           compliance: comp ? { areas: comp.areas || [], frameworks: (comp.frameworks || []).map((f) => ({ name: f.name, clause: f.clause })) } : null
         }
       }

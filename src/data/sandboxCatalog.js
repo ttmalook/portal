@@ -742,10 +742,18 @@ function humanizeKey(issueTypeKey) {
     .join(' ') || '기타 리스크'
 }
 
-// issue_type → 한글 명칭(별칭·버전 해석 포함). 없으면 display_name, 그래도 없으면 humanize(원문키 미노출).
+// 심각도 변형이 많은 패밀리(service_vuln_host_*, patching_cadence_*)를 패턴으로 한글명 커버.
+const _SEVKO = { critical: '심각', high: '높음', medium: '중간', low: '낮음' }
+function familyNameKo(k) {
+  const s = _SEVKO[(String(k).match(/(critical|high|medium|low)/) || [])[1]]
+  if (/^service_vuln_host/.test(k)) return `취약점 보유 호스트 노출${s ? `(${s})` : ''}`
+  if (/^patching_cadence/.test(k)) return `취약점 미패치${s ? `(${s})` : ''}`
+  return null
+}
+// issue_type → 한글 명칭(별칭·버전 해석 포함). 없으면 패밀리 패턴 → display_name → humanize(원문키 미노출).
 export function catalogNameKo(issueTypeKey) {
   const rep = repKey(issueTypeKey)
-  return KO_ISSUE_NAMES[rep] || BY_KEY[rep]?.display_name || humanizeKey(issueTypeKey)
+  return KO_ISSUE_NAMES[rep] || familyNameKo(String(issueTypeKey).toLowerCase()) || BY_KEY[rep]?.display_name || humanizeKey(issueTypeKey)
 }
 
 // SSC 팩터 원값 → 한글 10대 리스크 명칭. 없으면 원값/— 폴백.
