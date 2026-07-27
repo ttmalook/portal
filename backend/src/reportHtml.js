@@ -64,6 +64,12 @@ function overviewBody(it) {
     const fw = (comp.frameworks || []).map((f) => `<li><b>${esc(f.name)}</b>${f.clause ? ` · ${esc(f.clause)}` : ''}</li>`).join('')
     parts.push(`<div class="mini-t">관련 컴플라이언스 <span class="cnote">(참고 · 감사 판정 아님)</span></div>${comp.areas && comp.areas.length ? `<p class="muted">통제 영역: ${comp.areas.map(esc).join(' · ')}</p>` : ''}${fw ? `<ul class="fw">${fw}</ul>` : ''}`)
   }
+  const as = ov.assets
+  if (as && Array.isArray(as.list) && as.list.length) {
+    const rows = as.list.map((a) => `<tr><td>${esc(a.asset || '-')}</td><td>${esc([a.port, a.protocol].filter(Boolean).join(' / ') || '-')}</td><td>${esc(a.lastSeen || '-')}</td></tr>`).join('')
+    const more = as.total > as.list.length ? `<p class="assetmore">그 외 ${as.total - as.list.length}건 · 총 <b>${as.total}건</b> 관측</p>` : `<p class="assetmore">총 <b>${as.total}건</b> 관측</p>`
+    parts.push(`<div class="mini-t">관측된 자산 <span class="cnote">(이 유형이 발견된 대상)</span></div><table class="asset"><thead><tr><th>대상</th><th>포트/서비스</th><th>Last Seen</th></tr></thead><tbody>${rows}</tbody></table>${more}`)
+  }
   return parts.join('')
 }
 
@@ -85,24 +91,38 @@ function fixBody(it) {
   return parts.join('') || '<p class="muted">해당 유형의 표준 조치 방향을 준비 중입니다.</p>'
 }
 
+// 마무리 — 고객 조치 체크리스트 + (랩) 실행 로그 + 면책.
+function checklistHtml(it) {
+  const w = (it.apply && it.apply.whereToChange) || []
+  const lis = w.map((x) => `<li>${esc(x)}</li>`).join('') + '<li>조치 후 재확인 (검증 명령·재접속으로 반영 확인)</li><li>SecurityScorecard 재스캔으로 최종 해소 확인</li>'
+  return `<div class="mini-t">고객 조치 체크리스트</div><ul class="check">${lis}</ul>`
+}
+function logsHtml(it) {
+  const logs = Array.isArray(it.logs) ? it.logs : []
+  if (!logs.length) return ''
+  return `<div class="mini-t">실행 로그 (검증랩 내부 수행 기록)</div><pre class="log">${esc(logs.join('\n'))}</pre>`
+}
+
 function labSection(it) {
   const ev = it.evidence || {}
   const ba = `<div class="ba">${imgOrPlaceholder(ev.beforeImg, ev.beforeLabel || '조치 전', 'before')}${imgOrPlaceholder(ev.afterImg, ev.afterLabel || '조치 후', 'after')}</div>`
   const observe = diffTable(ev.diff) + (ev.tool ? `<p class="tool">확인 도구: <code>${esc(ev.tool)}</code></p>` : '') + '<p class="muted">관측값은 파트너 검증랩 재현 결과입니다. 고객 운영환경의 실제 해소 여부는 <b>SecurityScorecard 재스캔</b>으로 확인합니다.</p>'
+  const wrap = checklistHtml(it) + logsHtml(it) + '<p class="note">파트너 표준 검증랩에서 조치 전 → 조치 후를 재현한 참고 증적입니다. 귀사 운영환경의 조치 완료를 의미하지 않으며, 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차로 확인해야 합니다.</p>'
   return step('01', '개요', overviewBody(it))
     + step('02', '조치 방법', fixBody(it))
     + step('03', '조치 전 / 후', ba)
     + step('04', '관측값 · 확인', observe)
-    + step('05', '마무리', '<p class="note">파트너 표준 검증랩에서 조치 전 → 조치 후를 재현한 참고 증적입니다. 귀사 운영환경의 조치 완료를 의미하지 않으며, 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차로 확인해야 합니다.</p>')
+    + step('05', '마무리', wrap)
 }
 
 function guideSection(it) {
   const g = it.guide || {}
   const verify = '<p>운영 반영 후 <b>SecurityScorecard 재스캔</b>으로 해당 Finding 해소를 확인합니다.</p>' + (g.sscDesc ? `<div class="block"><div class="block-t">SSC 설명</div><p class="muted">${esc(g.sscDesc)}</p></div>` : '')
+  const wrap = checklistHtml(it) + '<p class="note">일반 구성 기준 조치 방향입니다. 운영 반영 전 고객 내부 검토·테스트가 필요하며, 해소 여부는 SecurityScorecard 재스캔으로 확인합니다.</p>'
   return step('01', '개요', overviewBody(it))
     + step('02', '조치 방법', fixBody(it))
     + step('03', '확인', verify)
-    + step('04', '마무리', '<p class="note">일반 구성 기준 조치 방향입니다. 운영 반영 전 고객 내부 검토·테스트가 필요하며, 해소 여부는 SecurityScorecard 재스캔으로 확인합니다.</p>')
+    + step('04', '마무리', wrap)
 }
 
 function sectionHtml(it, nav) {
@@ -170,6 +190,19 @@ function fmtDateEn(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso) 
 export function buildReportHtml(d) {
   const items = d.items || []
   const gc = gradeColor(d.score)
+  // 위험도 분포 막대
+  const dist = d.dist || { high: 0, medium: 0, low: 0 }
+  const distTotal = (dist.high + dist.medium + dist.low) || 1
+  const distMeta = [['high', '높음', '#dc2626'], ['medium', '보통', '#f59e0b'], ['low', '낮음', '#64748b']]
+  const distBars = distMeta.map(([k, lbl, col]) => `<div class="distrow"><span class="k">${lbl}</span><div class="bar"><i style="width:${Math.round((dist[k] / distTotal) * 100)}%;background:${col}"></i></div><span class="v">${dist[k] || 0}</span></div>`).join('')
+  // 팩터별 점수 막대
+  const factors = d.factors || []
+  const factorRows = factors.map((f) => {
+    const sc = f.score
+    const col = sc == null ? '#64748b' : sc >= 80 ? '#16a34a' : sc >= 60 ? '#f59e0b' : '#dc2626'
+    const w = sc == null ? 0 : Math.max(4, Math.min(100, sc))
+    return `<div class="fac"><span class="n">${esc(f.name)}</span><div class="bar"><i style="width:${w}%;background:${col}"></i></div><span class="g" style="color:${col}">${f.grade ? esc(f.grade) + ' · ' : ''}${sc != null ? esc(sc) : '-'}</span></div>`
+  }).join('')
   // 전역 페이지 순서(버튼 페이징) — 표지·요약·우선순위·각 항목.
   const order = ['__cover__', '__summary__', ...items.map((it) => it.key)]
   const orderJson = JSON.stringify(order)
@@ -243,9 +276,32 @@ body{margin:0;background:#f1f5f9;color:#0f172a;font-family:${fontStack};line-hei
 .exec-desc b{color:#0F2038}
 .notice{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:14px 16px;margin:18px 0;font-size:13px;color:#92400e}
 .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px 22px;margin-top:16px}
-.card h3{margin:0 0 4px;font-size:16px;color:#0F2038;font-weight:700;position:relative;padding-left:13px}
-.card h3::before{content:'';position:absolute;left:0;top:3px;bottom:3px;width:3px;border-radius:2px;background:#C9A66B}
-.card .sub{margin:0 0 14px;color:#64748b;font-size:13px;padding-left:13px}
+.card h3{margin:0 0 4px;font-size:16px;color:#0F2038;font-weight:700}
+.card .sub{margin:0 0 14px;color:#64748b;font-size:13px}
+.scope{display:flex;flex-wrap:wrap;border:1px solid #e6e9ef;border-radius:12px;overflow:hidden;margin-bottom:16px;background:#fff}
+.scope div{flex:1;min-width:150px;padding:12px 16px;border-right:1px solid #eef1f6}
+.scope div:last-child{border-right:none}
+.scope span{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#94a3b8;font-weight:700;display:block}
+.scope b{font-size:14px;color:#0F2038}
+.dist{margin:6px 0 2px}
+.distrow{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:13px}
+.distrow .k{width:44px;color:#475569}
+.distrow .bar{flex:1;height:9px;border-radius:5px;background:#eef1f6;overflow:hidden}
+.distrow .bar i{display:block;height:100%;border-radius:5px}
+.distrow .v{width:34px;text-align:right;font-variant-numeric:tabular-nums;color:#0F2038;font-weight:600}
+.fac{display:flex;align-items:center;gap:12px;margin:9px 0}
+.fac .n{width:190px;font-size:13px;color:#0F2038;font-weight:600}
+.fac .bar{flex:1;height:9px;border-radius:5px;background:#eef1f6;overflow:hidden}
+.fac .bar i{display:block;height:100%;border-radius:5px}
+.fac .g{width:76px;text-align:right;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+table.asset{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0}
+table.asset th{text-align:left;color:#64748b;font-weight:600;font-size:11.5px;padding:6px 8px;border-bottom:1px solid #e2e8f0}
+table.asset td{padding:6px 8px;border-bottom:1px solid #f1f5f9;font-family:ui-monospace,Consolas,monospace;color:#334155;word-break:break-all}
+.assetmore{font-size:12px;color:#64748b;margin:4px 0 0}
+.check{list-style:none;margin:4px 0 6px;padding:0}
+.check li{display:flex;gap:8px;align-items:flex-start;margin:6px 0;color:#334155;font-size:13.5px}
+.check li::before{content:'';flex-shrink:0;width:15px;height:15px;margin-top:2px;border:1.5px solid #c4ccd8;border-radius:4px}
+.log{margin:6px 0;padding:12px 14px;background:#0b1220;color:#9fb3cf;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.7;border-radius:8px;white-space:pre-wrap;overflow-x:auto}
 table.pri{width:100%;border-collapse:collapse;font-size:14px}
 table.pri th{text-align:left;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:#0F2038;font-weight:700;padding:9px 10px;border-bottom:2px solid #C9A66B}
 table.pri td{padding:11px 10px;border-bottom:1px solid #eef2f7;vertical-align:middle}
@@ -322,9 +378,9 @@ table.diff tr.changed{background:#fafcff}
 .steps{margin:6px 0 0;padding-left:20px}
 .steps li{margin:4px 0}
 .muted{color:#64748b}
-.note{font-size:12px;color:#64748b;border-left:3px solid #C9A66B;padding:6px 12px;margin-top:14px;background:#faf7f0;border-radius:0 8px 8px 0}
+.note{font-size:12.5px;color:#64748b;padding:11px 14px;margin-top:14px;background:#f8f9fb;border:1px solid #eceef2;border-radius:8px;line-height:1.65}
 .foot{display:none}
-.ai-box{background:#faf7f0;border-left:3px solid #C9A66B;border-radius:0 8px 8px 0;padding:12px 16px;margin:12px 0}
+.ai-box{background:#faf7f0;border:1px solid #efe7d5;border-radius:8px;padding:12px 16px;margin:12px 0}
 .ai-t{font-size:12px;font-weight:700;color:#a8863f;margin-bottom:5px;letter-spacing:.02em}
 .ai-box p{margin:0;color:#334155;line-height:1.7}
 @media(max-width:640px){.ba{grid-template-columns:1fr}}
@@ -364,6 +420,12 @@ table.diff tr.changed{background:#fafcff}
 </section>
 <div class="wrap">
   <section class="pg" id="summary">
+    <div class="scope">
+      <div><span>대상 도메인</span><b>${esc(d.shownDomain || d.domain)}</b></div>
+      <div><span>평가 기준</span><b>SecurityScorecard 외부 관측</b></div>
+      <div><span>등급 체계</span><b>A ~ F</b></div>
+      <div><span>발행일</span><b>${esc(d.generatedAt)}</b></div>
+    </div>
     <div class="exec">
       <div class="exec-eyebrow">Executive Summary · 요약</div>
       <div class="exec-grid">
@@ -380,8 +442,11 @@ table.diff tr.changed{background:#fafcff}
           <div><b>${items.filter((it) => it.kind === 'guide').length}</b><span>조치 가이드</span></div>
         </div>
       </div>
-      <p class="exec-desc">${esc(d.customer)}(${esc(d.shownDomain || d.domain)})에 대한 SecurityScorecard 외부 보안 평가 결과 총 <b>${items.length}개 유형</b>의 리스크가 확인되었습니다. 아래 조치 우선순위는 <b>위험도와 점수 개선 효과</b> 순으로 정렬되어 있으며, 각 유형은 파트너 검증랩 재현 증적 또는 조치 가이드로 제공됩니다.</p>
+      <div class="mini-t">위험도 분포</div>
+      <div class="dist">${distBars}</div>
+      <p class="exec-desc">${esc(d.customer)}(${esc(d.shownDomain || d.domain)})에 대한 SecurityScorecard 외부 보안 평가 결과 총 <b>${items.length}개 유형</b>의 리스크가 확인되었으며 종합 등급은 <b>${d.grade ? esc(d.grade) : '—'}(${d.score != null ? esc(d.score) : '—'}점)</b>입니다. 아래 조치 우선순위는 <b>위험도와 점수 개선 효과</b> 순으로 정렬되어 있으며, 각 유형은 파트너 검증랩 재현 증적 또는 조치 가이드로 제공됩니다.</p>
     </div>
+    ${factorRows ? `<div class="card"><h3>보안 팩터별 점수</h3><p class="sub">SecurityScorecard 팩터별 등급 — 종합 등급의 근거</p>${factorRows}</div>` : ''}
     <div class="notice">파트너 표준 검증랩 증적은 귀사 운영환경의 조치 완료를 의미하지 않습니다. 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차를 통해 확인해야 합니다.</div>
     <div class="card">
       <h3>조치 우선순위</h3>

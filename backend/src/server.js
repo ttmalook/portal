@@ -864,13 +864,26 @@ app.post('/api/portal/report-export', async (req, res) => {
   const scoreDomain = dom ? (dom.sscLookupDomain || String(dom.serviceEndpoint || dom.primary || '').split(':')[0]) : null
   const shownDomain = dom ? (dom.serviceEndpoint || dom.primary) : scoreDomain
   if (!scoreDomain) return res.status(404).json({ ok: false, message: 'no domain for customer' })
-  let score = null, grade = null, summary = []
+  let score = null, grade = null, summary = [], findings = []
   try {
     const r = await collectRiskFindingsForDomain(scoreDomain, { batchSize: 10, enrich: true, fullText: true })
     score = r.score; grade = r.grade
     summary = (r.issueTypeSummary || []).filter((t) => String(t.severity).toLowerCase() !== 'info')
+    findings = r.findings || []
   } catch { /* SSC 실패 → 요약 없이 증적만 */ }
   summary.sort((a, b) => (b.score_impact ?? 0) - (a.score_impact ?? 0))
+  // 위험도 분포
+  const dist = { high: 0, medium: 0, low: 0 }
+  summary.forEach((t) => { const s = String(t.severity).toLowerCase(); if (dist[s] != null) dist[s]++ })
+  // 팩터별 점수(SSC) — 등급 F 근거
+  let factors = []
+  try { const fr = await sscGet(`/companies/${encodeURIComponent(scoreDomain)}/factors`); if (fr.ok) factors = (normalizeFactors(fr.data) || []).filter((f) => f.name && f.score != null) } catch { /* noop */ }
+  // 유형별 관측 자산(findings 그룹핑)
+  const assetsByType = {}
+  for (const f of findings) {
+    const k = f.issue_type; if (!k) continue
+    ;(assetsByType[k] = assetsByType[k] || []).push({ asset: f.asset_value || f.domain || f.ip || null, port: f.port || null, protocol: f.protocol || null, lastSeen: f.last_seen ? String(f.last_seen).slice(0, 10) : null })
+  }
   // 이 고객사의 대표 랩 런(canonical 매칭)
   const allPacks = await portal.getEvidencePacks()
   const labPacks = (allPacks || []).filter((p) => p.excluded !== true && p.source === 'lab' && p.labRunId
@@ -883,13 +896,14 @@ app.post('/api/portal/report-export', async (req, res) => {
     const ex = extras[key] || {}
     const apply = { whereToChange: ex.whereToChange || [], engines: ex.engines || [], versionNote: ex.versionNote || null }
     const aiSummary = await peekInterpretation(key).catch(() => null) // 점검 때 캐시된 쉬운말 해석 재사용(생성 안 함)
-    const overview = { displayName: ex.displayName || null, difficulty: ex.difficulty || null, impact: ex.impact || null, why: ex.why || null, compliance: ex.compliance || null, aiSummary }
+    const rawAssets = assetsByType[key] || []
+    const overview = { displayName: ex.displayName || null, difficulty: ex.difficulty || null, impact: ex.impact || null, why: ex.why || null, compliance: ex.compliance || null, aiSummary, assets: { list: rawAssets.slice(0, 6), total: rawAssets.length } }
     const run = runByCanon[canonType(key)]
     if (run && run.status === 'succeeded' && run.evidence) {
       const ev = run.evidence
       const [beforeImg, afterImg] = await Promise.all([imgToDataUri(ev.visual_before?.screenshot), imgToDataUri(ev.visual_after?.screenshot)])
       return { key, name, severity: t.severity, scoreImpact: t.score_impact, kind: 'lab',
-        category: ex.category || run.category, tool: run.tool, sscDesc: t.ssc_description, apply, overview,
+        category: ex.category || run.category, tool: run.tool, sscDesc: t.ssc_description, apply, overview, logs: run.logs || [],
         guide: run.guide ? { direction: run.guide.direction, steps: run.guide.steps } : null,
         sourceDiff: run.sourceDiff || null,
         evidence: { beforeImg, afterImg, beforeLabel: ev.visual_before?.label, afterLabel: ev.visual_after?.label, diff: ev.technical_diff || [], tool: ev.raw_summary?.tool } }
@@ -899,7 +913,7 @@ app.post('/api/portal/report-export', async (req, res) => {
       category: ex.category || t.factor || null, apply, overview,
       guide: { direction: g.direction, steps: g.steps, sscRec: t.ssc_recommendation, sscDesc: t.ssc_description } }
   }))
-  const html = buildReportHtml({ customer, domain: scoreDomain, shownDomain, score, grade, generatedAt: new Date().toISOString().slice(0, 10), fontDataUri: fontDataUri(), items })
+  const html = buildReportHtml({ customer, domain: scoreDomain, shownDomain, score, grade, generatedAt: new Date().toISOString().slice(0, 10), fontDataUri: fontDataUri(), items, factors, dist })
   const fname = `SSC_리포트_${customer}_${new Date().toISOString().slice(0, 10)}.html`
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`)
