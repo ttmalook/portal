@@ -1887,10 +1887,14 @@ export function DeliveryReportViewer({ custName, app }) {
         const eg = engineGuide(it)
         const meta = guideRowMeta(it) || {}
         const comp = complianceRefFor(it, meta.category)
+        const entry = catalogEntry(it)
+        const subVars = (s) => String(s || '').replace(/\{endpoint\}|\{host\}|\{domain\}/g, shownDomain || scoreDomain || '대상')
         extras[it] = {
-          whereToChange: catalogEntry(it)?.whereToChange || [],
+          whereToChange: entry?.whereToChange || [],
           engines: eg?.applies ? eg.engines.map((e) => ({ name: e.name, lang: e.lang, snippet: e.snippet })) : [],
           versionNote: eg?.applies ? eg.versionNote : null,
+          verification: (entry?.verification || []).map(subVars),
+          configDiff: entry?.configDiff ? { label: entry.configDiff.label, file: entry.configDiff.file, lines: entry.configDiff.lines } : null,
           displayName: meta.displayName || null,
           difficulty: meta.difficulty || null,
           impact: meta.impact || null,

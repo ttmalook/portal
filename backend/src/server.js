@@ -894,7 +894,7 @@ app.post('/api/portal/report-export', async (req, res) => {
     const key = t.issue_type
     const name = names[key] || humanizeKey(key)
     const ex = extras[key] || {}
-    const apply = { whereToChange: ex.whereToChange || [], engines: ex.engines || [], versionNote: ex.versionNote || null }
+    const apply = { whereToChange: ex.whereToChange || [], engines: ex.engines || [], versionNote: ex.versionNote || null, verification: ex.verification || [] }
     const aiSummary = await peekInterpretation(key).catch(() => null) // 점검 때 캐시된 쉬운말 해석 재사용(생성 안 함)
     const rawAssets = assetsByType[key] || []
     const overview = { displayName: ex.displayName || null, difficulty: ex.difficulty || null, impact: ex.impact || null, why: ex.why || null, compliance: ex.compliance || null, aiSummary, assets: { list: rawAssets.slice(0, 6), total: rawAssets.length } }
@@ -910,7 +910,7 @@ app.post('/api/portal/report-export', async (req, res) => {
     }
     const g = GUIDES[guideKey(key)] || {}
     return { key, name, severity: t.severity, scoreImpact: t.score_impact, kind: 'guide',
-      category: ex.category || t.factor || null, apply, overview,
+      category: ex.category || t.factor || null, apply, overview, configDiff: ex.configDiff || null,
       guide: { direction: g.direction, steps: g.steps, sscRec: t.ssc_recommendation, sscDesc: t.ssc_description } }
   }))
   const html = buildReportHtml({ customer, domain: scoreDomain, shownDomain, score, grade, generatedAt: new Date().toISOString().slice(0, 10), fontDataUri: fontDataUri(), items, factors, dist })

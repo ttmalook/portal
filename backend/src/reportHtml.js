@@ -83,6 +83,7 @@ function fixBody(it) {
     parts.push(`<div class="mini-t">어디를 고쳐야 하나요 (설정 위치)</div><p class="muted">아래 위치 <b>중 한 곳</b>에서 환경에 맞게 적용합니다(모두가 아니라 택1).</p><ul class="where">${ap.whereToChange.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>`)
   }
   if (it.sourceDiff) parts.push(`<div class="mini-t">실제 소스 변경 (검증랩 타깃의 취약 → 조치)</div>${sourceDiffHtml(it.sourceDiff)}`)
+  else if (it.configDiff) parts.push(`<div class="mini-t">설정 변경 예시</div><p class="muted">아래는 실제 설정에서 추가(+)/삭제(−)할 부분의 예시입니다(환경마다 경로·형식은 다를 수 있습니다).</p>${sourceDiffHtml(it.configDiff)}`)
   if (Array.isArray(ap.engines) && ap.engines.length) {
     const eng = ap.engines.map((e) => `<div class="eng"><div class="eng-h">${esc(e.name)}${e.lang ? ` · ${esc(e.lang)}` : ''}</div><pre class="eng-c">${esc(e.snippet)}</pre></div>`).join('')
     parts.push(`<div class="mini-t">고객 환경 적용 방법 (엔진별)</div><p class="muted">고객 웹 엔진에 맞는 설정을 적용하세요.</p>${eng}${ap.versionNote ? `<p class="vnote">${esc(ap.versionNote)}</p>` : ''}`)
@@ -102,11 +103,16 @@ function logsHtml(it) {
   if (!logs.length) return ''
   return `<div class="mini-t">실행 로그 (검증랩 내부 수행 기록)</div><pre class="log">${esc(logs.join('\n'))}</pre>`
 }
+function verifyCmdsHtml(it) {
+  const cmds = (it.apply && it.apply.verification) || []
+  if (!cmds.length) return ''
+  return `<div class="mini-t">조치 여부 확인 방법 (검증 명령)</div><pre class="log">${esc(cmds.join('\n'))}</pre>`
+}
 
 function labSection(it) {
   const ev = it.evidence || {}
   const ba = `<div class="ba">${imgOrPlaceholder(ev.beforeImg, ev.beforeLabel || '조치 전', 'before')}${imgOrPlaceholder(ev.afterImg, ev.afterLabel || '조치 후', 'after')}</div>`
-  const observe = diffTable(ev.diff) + (ev.tool ? `<p class="tool">확인 도구: <code>${esc(ev.tool)}</code></p>` : '') + '<p class="muted">관측값은 파트너 검증랩 재현 결과입니다. 고객 운영환경의 실제 해소 여부는 <b>SecurityScorecard 재스캔</b>으로 확인합니다.</p>'
+  const observe = diffTable(ev.diff) + (ev.tool ? `<p class="tool">확인 도구: <code>${esc(ev.tool)}</code></p>` : '') + verifyCmdsHtml(it) + '<p class="muted">관측값은 파트너 검증랩 재현 결과입니다. 고객 운영환경의 실제 해소 여부는 <b>SecurityScorecard 재스캔</b>으로 확인합니다.</p>'
   const wrap = checklistHtml(it) + logsHtml(it) + '<p class="note">파트너 표준 검증랩에서 조치 전 → 조치 후를 재현한 참고 증적입니다. 귀사 운영환경의 조치 완료를 의미하지 않으며, 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차로 확인해야 합니다.</p>'
   return step('01', '개요', overviewBody(it))
     + step('02', '조치 방법', fixBody(it))
@@ -117,7 +123,7 @@ function labSection(it) {
 
 function guideSection(it) {
   const g = it.guide || {}
-  const verify = '<p>운영 반영 후 <b>SecurityScorecard 재스캔</b>으로 해당 Finding 해소를 확인합니다.</p>' + (g.sscDesc ? `<div class="block"><div class="block-t">SSC 설명</div><p class="muted">${esc(g.sscDesc)}</p></div>` : '')
+  const verify = verifyCmdsHtml(it) + '<p>운영 반영 후 <b>SecurityScorecard 재스캔</b>으로 해당 Finding 해소를 확인합니다.</p>'
   const wrap = checklistHtml(it) + '<p class="note">일반 구성 기준 조치 방향입니다. 운영 반영 전 고객 내부 검토·테스트가 필요하며, 해소 여부는 SecurityScorecard 재스캔으로 확인합니다.</p>'
   return step('01', '개요', overviewBody(it))
     + step('02', '조치 방법', fixBody(it))
