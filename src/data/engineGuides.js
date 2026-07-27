@@ -26,12 +26,15 @@ function shapeFor(issueType) {
   if (t.includes('x_frame') || t.includes('clickjack')) return { kind: 'header', name: 'X-Frame-Options', value: 'SAMEORIGIN' }
   if (t.includes('x_content') || t.includes('content_type_options')) return { kind: 'header', name: 'X-Content-Type-Options', value: 'nosniff' }
   if (t.includes('referrer')) return { kind: 'header', name: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' }
+  if (t.includes('x_xss') || t.includes('xss_protection')) return { kind: 'header', name: 'X-XSS-Protection', value: '0' } // 최신 권장: 0(레거시 필터 비활성) + CSP
+  if (t.includes('x_powered_by') || t.includes('powered_by')) return { kind: 'header_remove', name: 'X-Powered-By' }
+  if (t.includes('server_version') || t.includes('server_banner') || t.includes('server_signature') || t.includes('server_software')) return { kind: 'header_remove', name: 'Server' }
   if (t.includes('cookie') && t.includes('http_only')) return { kind: 'cookie', attrs: ['HttpOnly'] }
   if (t.includes('cookie') && t.includes('secure')) return { kind: 'cookie', attrs: ['Secure'] }
   if (t.includes('protocol')) return { kind: 'tls_protocol' }
   if (t.includes('cipher')) return { kind: 'tls_cipher' }
   // HTTPS 강제(평문 HTTP 미적용 / HTTP→HTTPS 리다이렉트) — 엔진별 리다이렉트 설정이 다름 → 탭 대상
-  if (t.includes('domain_missing_https') || t.includes('insecure_https_redirect') || (t.includes('https') && t.includes('redirect'))) return { kind: 'https_redirect' }
+  if (t.includes('domain_missing_https') || t.includes('redirect')) return { kind: 'https_redirect' }
   return null // 엔진 무관 (dns/network/cert-expiration 등)
 }
 
@@ -44,6 +47,16 @@ function renderSnippet(engineId, shape) {
       case 'apache': return `# mod_headers 필요\nHeader always set ${name} "${value}"`
       case 'iis': return `<!-- web.config -->\n<system.webServer>\n  <httpProtocol>\n    <customHeaders>\n      <add name="${name}" value="${value}" />\n    </customHeaders>\n  </httpProtocol>\n</system.webServer>`
       case 'app': return `// Express 예시 (프레임워크마다 다름)\napp.use((req, res, next) => {\n  res.setHeader('${name}', '${value}')\n  next()\n})`
+    }
+  }
+  if (shape.kind === 'header_remove') {
+    const { name } = shape
+    const tokens = name === 'Server'
+    switch (engineId) {
+      case 'nginx': return tokens ? `server_tokens off;            # nginx 버전 숨김\nproxy_hide_header Server;      # 업스트림 Server 헤더 숨김` : `proxy_hide_header ${name};   # 업스트림이 내려주는 ${name} 제거`
+      case 'apache': return tokens ? `ServerTokens Prod\nServerSignature Off` : `# mod_headers\nHeader always unset ${name}`
+      case 'iis': return `<!-- web.config -->\n<system.webServer>\n  <httpProtocol>\n    <customHeaders>\n      <remove name="${name}" />\n    </customHeaders>\n  </httpProtocol>\n</system.webServer>`
+      case 'app': return name === 'X-Powered-By' ? `// Express 예시\napp.disable('x-powered-by')` : `// 응답에서 ${name} 헤더 제거\nres.removeHeader('${name}')`
     }
   }
   if (shape.kind === 'cookie') {

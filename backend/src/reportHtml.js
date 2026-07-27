@@ -85,8 +85,10 @@ function fixBody(it) {
   if (it.sourceDiff) parts.push(`<div class="mini-t">실제 소스 변경 (검증랩 타깃의 취약 → 조치)</div>${sourceDiffHtml(it.sourceDiff)}`)
   else if (it.configDiff) parts.push(`<div class="mini-t">설정 변경 예시</div><p class="muted">아래는 실제 설정에서 추가(+)/삭제(−)할 부분의 예시입니다(환경마다 경로·형식은 다를 수 있습니다).</p>${sourceDiffHtml(it.configDiff)}`)
   if (Array.isArray(ap.engines) && ap.engines.length) {
-    const eng = ap.engines.map((e) => `<div class="eng"><div class="eng-h">${esc(e.name)}${e.lang ? ` · ${esc(e.lang)}` : ''}</div><pre class="eng-c">${esc(e.snippet)}</pre></div>`).join('')
+    const eng = ap.engines.map((e) => `<div class="eng"><div class="eng-h">${esc(e.name || '')}${e.file ? ` · ${esc(e.file)}` : e.lang ? ` · ${esc(e.lang)}` : ''}</div><pre class="eng-c">${esc(e.snippet)}</pre></div>`).join('')
     parts.push(`<div class="mini-t">고객 환경 적용 방법 (엔진별)</div><p class="muted">고객 웹 엔진에 맞는 설정을 적용하세요.</p>${eng}${ap.versionNote ? `<p class="vnote">${esc(ap.versionNote)}</p>` : ''}`)
+  } else if (Array.isArray(ap.whereToChange) && ap.whereToChange.length) {
+    parts.push('<p class="vnote">이 유형은 웹 서버 헤더·한 줄 설정으로 해소되는 대상이 아니라, 위 <b>‘어디를 고쳐야 하나요’</b>의 위치(인증서 재발급 · DNS 레코드 · 방화벽/서비스 차단 등)에서 조치합니다.</p>')
   }
   if (g.sscRec) parts.push(`<div class="block"><div class="block-t">SecurityScorecard 공식 권고</div><p>${esc(g.sscRec)}</p></div>`)
   return parts.join('') || '<p class="muted">해당 유형의 표준 조치 방향을 준비 중입니다.</p>'

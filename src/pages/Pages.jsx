@@ -1891,7 +1891,7 @@ export function DeliveryReportViewer({ custName, app }) {
         const subVars = (s) => String(s || '').replace(/\{endpoint\}|\{host\}|\{domain\}/g, shownDomain || scoreDomain || '대상')
         extras[it] = {
           whereToChange: entry?.whereToChange || [],
-          engines: eg?.applies ? eg.engines.map((e) => ({ name: e.name, lang: e.lang, snippet: e.snippet })) : [],
+          engines: eg?.applies ? eg.engines.map((e) => ({ name: e.label || e.name, file: e.file || null, snippet: e.snippet })) : [],
           versionNote: eg?.applies ? eg.versionNote : null,
           verification: (entry?.verification || []).map(subVars),
           configDiff: entry?.configDiff ? { label: entry.configDiff.label, file: entry.configDiff.file, lines: entry.configDiff.lines } : null,
