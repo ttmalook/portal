@@ -22,7 +22,7 @@ flowchart LR
   L["로그인"] --> D["대시보드"]
   D --> C["고객사"] --> DM["도메인 등록"] --> R["리스크 점검"]
   R --> LAB["검증랩"] & G["조치 가이드"]
-  LAB & G --> E["증적 팩"] --> DEL["고객 전달"] --> RV["리포트 뷰어<br/>(PDF·메일)"]
+  LAB & G --> E["증적 팩"] --> DEL["고객 전달"] --> RV["리포트 HTML 내보내기<br/>(자립형 파일 · 메일 첨부)"]
 ```
 
 관리 화면(감사 로그 · 사용자 관리 · 랩 스튜디오 · API 문서)은 이 흐름과 별개인 관리자 전용 도구입니다.
@@ -34,6 +34,7 @@ flowchart LR
 모든 화면 상단에 고정된 바입니다.
 
 - **주요 기능** 사이드바 토글 · 알림(벨) · **계정 보안**(→ SCR-12) · 로그아웃
+- **UI** 라이트 사이드바(소프트 슬레이트) · 그룹별 메뉴 · 의미 기반 Lucide 아이콘 · 네이비 브랜드 마크. (상용 톤 정리 — 컬러 이모지 제거)
 - **세션** access 토큰은 메모리(15분→**5분**), refresh 는 httpOnly 쿠키. **세션 타임아웃 10분**(유휴 시 자동 로그아웃, 활동 시 회전으로 연장). refresh 재사용 감지 시 family 전체 폐기.
 - **접속** 전 구간 **HTTPS**(공인 인증서). refresh 쿠키 `Secure` — HTTP 접속 시 세션 유지 불가.
 - **Component** `App` · `src/App.jsx`
@@ -58,13 +59,18 @@ flowchart LR
 
 ![대시보드](screens/01_dashboard.jpg)
 
-외부 관측 리스크부터 고객 전달·SSC 재스캔까지 파트너 운영 흐름을 요약합니다. 지표·증적 팩 현황·최근 활동은 **실데이터 실집계**입니다(목업 없음).
+포트폴리오 보안 현황과 파트너 운영 흐름을 **위젯 그리드**로 한눈에 보여줍니다. 모두 **실데이터 실집계**입니다(목업 없음).
 
-- **주요 기능** 운영 프로세스 단계 클릭 이동 · 핵심 지표(고객·도메인·증적 팩) · 증적 팩 현황 · 최근 활동(실제 감사 로그)
+- **주요 기능(위젯)**
+  - **핵심 지표(KPI)** 고객사·도메인·증적 팩·조치 우선순위 수
+  - **SSC 보안등급** 고객사별 등급을 **위험 우선(낮은 점수 먼저)** 정렬 + 등급 분포 (도메인별 `getScore` 조회, 세션 캐시)
+  - **이슈 위험도** 높음/보통/낮음 도넛
+  - **운영 파이프라인** 점검 → 검증랩 → 증적 → 전달 퍼널
+  - **고객사별 리스크 요약** 표 · **최근 활동** 피드(실제 감사 로그)
 - **역할** 전체
 - **연결** ← 로그인 / → 고객사·도메인·리스크·검증랩·증적 팩·고객 전달
 - **Component** `Dashboard` · `src/pages/Pages.jsx`
-- **API** app 상태 재사용 · `GET /api/audit`
+- **API** `getScore`(회사별 SSC 등급) · `getIssueTypeSummary` · `GET /api/audit`
 
 ---
 
@@ -95,6 +101,7 @@ flowchart LR
 - **Component** `Domains` · `src/pages/Pages.jsx`
 - **API** `GET/POST/PUT/DELETE /api/portal/domains`
 - **세부(모달)** 도메인 등록/수정 모달(`DomainModal`: 서비스 주소·SSC 조회 기준·허용/차단 URL·스크린샷/HAR·동의 상태). 서버 입력 검증·새니타이즈 적용.
+- **SSC 조회 기준 정규화** 저장·조회 시 **apex 도메인으로 자동 정규화**(scheme·port·path·`www.` 제거 — `www.posco.co.kr` → `posco.co.kr`). SSC 스코어카드는 apex 기준이라 `www.`가 붙으면 스코프 오탐(Scope Denied)이 나므로 서버(`cleanDomain`)에서 통일.
 
 ---
 
@@ -121,9 +128,10 @@ issue_type을 선택해 표준 검증랩을 실행하고 **조치 전·후 참�
 
 - **주요 기능** 리스크 항목(SSC finding) 선택·랩 실행 · **실제 공격 시나리오 증적**(단순 헤더 확인이 아니라 실제 재현) · 증적 팩에 추가 · 최근 재현 기록·대표 증적 지정
 - **공격 시나리오 증적(예)** 클릭재킹(공격자 iframe 삽입 → 조치 시 브라우저 차단) · 쿠키 탈취(document.cookie · HttpOnly) · TLS 다운그레이드(openssl s_client) · 약한 SSH cipher(ssh -c) · HSTS 강제 · 포트 노출(ncat) — 실제 `curl`/`openssl`/`dig`/`ssh` 출력을 터미널 화면으로 캡처(촬영 시각·SHA-256 포함)
+- **증적 스테퍼(5단계)** 재현 결과는 드로어에서 단계별로 표시: **① 개요**(유형 메타·위험도·분류) · **② 조치 방법**(어디를 고쳐야·실제 소스 변경 diff·**엔진별 적용**·SSC 공식 권고) · **③ 조치 전/후**(before/after 캡처) · **④ 관측값·확인**(technical diff·검증 명령) · **⑤ 마무리**(고객 조치 체크리스트·실행 로그·면책)
 - **역할** 조회 `전체` / 실행 `admin` `partner` `labs`
 - **연결** ← 리스크 점검 / → 증적 팩
-- **Component** `ValidationSandbox` · `src/features/Lab.jsx` (증적 수집: `lab/evidence-collector`)
+- **Component** `ValidationSandbox` + `LabEvidenceSteps` · `src/features/Lab.jsx` (증적 수집: `lab/evidence-collector`)
 - **API** `GET /api/lab/templates` · `POST /api/lab/runs` · `GET /api/lab/artifact`
 - **세부** `docker` collector 격리망(labnet)에서 취약/조치 2타깃에 실제 명령 실행. 전달 시점 실시간 촬영(응답 `Date` 헤더로 촬영 시각 명시). 수동 검증 하니스([lab/verify](../lab/verify/MANUAL_GUIDE.md))로 조치 실효성 독립 확인 가능.
 
@@ -133,13 +141,15 @@ issue_type을 선택해 표준 검증랩을 실행하고 **조치 전·후 참�
 
 ![조치 가이드](screens/06_guides.jpg)
 
-이슈 유형별 표준 조치 가이드(스텝별)·엔진별 설정 예시·컴플라이언스 참조를 제공합니다.
+검증랩 미지원(또는 참고) 유형의 표준 조치 가이드를 **4단계 드로어**로 제공합니다. 검증랩과 같은 스텝 구조를 공유하되 조치 전/후 재현 대신 가이드 중심입니다.
 
-- **주요 기능** 이슈 선택·스텝 가이드 · 엔진(nginx·Apache 등) 탭 · 쉬운말 해석 · 증적 팩에 추가
+- **가이드 드로어(4단계)** **① 개요**(유형 메타 · **쉬운 말 요약(AI 자동 해석·캐시)** · 무엇이 왜 문제(위험도·분류·난이도·서비스 영향 칩 + 설명) · 관련 컴플라이언스(통제 영역·프레임워크) · 관측된 자산) · **② 조치 방법**(어디를 고쳐야 · 설정 변경 예시 · **엔진별 적용 스니펫** · SSC 공식 권고) · **③ 관측값·확인**(검증 명령) · **④ 마무리**(고객 조치 체크리스트·면책)
+- **유형 커버리지** 카탈로그 지원 유형 외에도 **패밀리 패턴**으로 심각도 변형을 일괄 커버(취약 호스트 노출·미패치)하고, **침해 계열**은 성격별 2분기(확정 침해=격리·조사·IR / 노출·시그널=모니터링·강화). 완전 미지 유형은 SSC 공식 권고로 폴백.
+- **주요 기능** 이슈 선택 · 4단계 가이드 · 엔진 탭 · 쉬운말 해석 · 증적 팩에 추가
 - **역할** 조회 `전체`
 - **연결** ← 리스크 점검 / → 증적 팩
-- **Component** `RemediationGuides` · `src/pages/Pages.jsx`
-- **API** `POST /api/guides/interpret`(선택)
+- **Component** `RemediationGuides`(`GuideSteps`) · `src/pages/Pages.jsx` · 데이터 `src/data/{remediationSteps,engineGuides,compliance}.js`
+- **API** `POST /api/guides/interpret`(쉬운말 해석·캐시)
 
 ---
 
@@ -173,8 +183,19 @@ issue_type을 선택해 표준 검증랩을 실행하고 **조치 전·후 참�
 
 > **리포트 뷰어**(`#report=<고객사>`, 새 창 · 사이드바 없음): 2스텝(리포트 검토 → 전달).
 > - **리포트 검토** 우선순위 표 · 이슈 드릴인(조치 전후 증적/가이드)
-> - **전달** PDF 인쇄 · 이메일 전달(mailto) · **게시 링크(개별 팩)** — 전달 대상 팩별 **"링크 복사"**(로그인 없이 해당 팩만 열람하는 고객 게시 링크, 30일 유효, 복사 시 토스트)
-> `DeliveryReportViewer` · 이 뷰어는 자체 토스트 호스트를 가집니다. SSC 실 리스크 데이터가 있어야 채워지므로 데모 캡처에서는 제외했습니다.
+> - **전달 방법** ① **리포트 HTML 내보내기**(메인) · ② 이메일 전달(mailto) · ③ 개별 팩 링크(선택, `#share`, 30일 유효)
+> `DeliveryReportViewer` · SSC 실 리스크 데이터가 있어야 채워지므로 데모 캡처에서는 제외했습니다.
+
+### 리포트 HTML 내보내기 (핵심 전달물)
+
+전달 화면의 **메인 산출물**입니다. 백엔드가 **자립형(assets 임베드) 단일 HTML 파일**을 생성해 다운로드합니다 — 서버·로그인 없이 어디서든 열리고, 그 파일 하나를 메일에 첨부해 전달합니다.
+
+- **구성** ① **표지**(딥 네이비 + 골드 · 로고 · 리포트명 · 고객사 · 도메인 · 발행일) · ② **Executive Summary**(보안등급·위험도 분포·팩터별 점수·조치 우선순위 표) · ③ **유형별 상세**(개요 → 조치 방법 → 관측값·확인 → 마무리, 검증랩 지원이면 조치 전/후 증적 포함)
+- **인터랙션** 스크롤이 아니라 **이전/다음 버튼 페이징**(우선순위 표 클릭 → 해당 항목으로 이동). 인쇄 시 페이지 분리.
+- **자립성** Pretendard 폰트·증적 스크린샷을 **data URI로 임베드**, CSS/JS 인라인. 원문키·잘림 없이 SSC 원문 전체·한글명·엔진별 조치·검증 명령까지 포함.
+- **역할** 발행 `admin` `partner` `evidence`
+- **Component** 생성기 `backend/src/reportHtml.js` · 조립 `POST /api/portal/report-export`(한글명·엔진별·컴플라이언스는 프론트가 카탈로그에서 전달)
+- **API** `POST /api/portal/report-export`(인증 · HTML 파일 다운로드)
 
 ---
 
@@ -216,6 +237,7 @@ SSC 기반 AI Lab Builder. 커버리지 → 이슈 분류 → 레시피 컴파�
 - **역할** `admin` 전용
 - **Component** `LabStudio` · `src/pages/LabStudio.jsx`
 - **API** `/api/admin/lab-coverage · lab-classify · lab-recipes/*` · `/api/settings/claude-key`
+- **구현 범위(인계 주의)** **Phase 1 완료** — `http_header`·`network` 아키타입 레시피 생성 → 게이트 → 채택 엔드투엔드. **Phase 2(임시 nginx config 렌더 · tls/dns/ssh 아키타입) · Phase 3(실패 자동수정 루프 · 하드닝)은 미완**입니다. 미지원 아키타입은 렌더러가 `LAB_ARCHETYPE_UNSUPPORTED`를 반환합니다. 기존 검증랩 50종(하드코딩)은 이와 무관하게 정상 동작합니다.
 
 ---
 
