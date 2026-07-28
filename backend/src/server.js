@@ -712,16 +712,23 @@ app.get('/api/portal/domains', async (req, res) => res.json({ ok: true, domains:
  *       200: { description: 삭제됨, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
  *       403: { $ref: '#/components/responses/Forbidden' }
  */
+// SSC 조회 기준(sscLookupDomain)을 apex로 정규화 — 목록·리포트·조회 일관성(www.posco.co.kr → posco.co.kr).
+function normSscLookup(body) {
+  if (!body || typeof body !== 'object') return body
+  if (body.sscLookupDomain != null) body.sscLookupDomain = cleanDomain(body.sscLookupDomain) || null
+  else if (body.serviceEndpoint || body.primary) body.sscLookupDomain = cleanDomain(body.serviceEndpoint || body.primary) || null
+  return body
+}
 app.post('/api/portal/domains', requirePerm('domains', 'write'), async (req, res) => {
   const body = validateBody(domainCreate, req, res); if (!body) return
-  const d = await portal.addDomain(stampOwner(req, body))
+  const d = await portal.addDomain(stampOwner(req, normSscLookup(body)))
   auditReq(req, 'user', '도메인 등록', d?.serviceEndpoint || d?.primary || d?.id, 'Created')
   res.json({ ok: true, domain: d })
 })
 app.put('/api/portal/domains/:id', requirePerm('domains', 'write'), async (req, res) => {
   if (!(await guardMutate(req, res, portal.getDomains(), req.params.id))) return
   const body = validateBody(domainUpdate, req, res); if (!body) return
-  const d = await portal.updateDomain(req.params.id, body)
+  const d = await portal.updateDomain(req.params.id, normSscLookup(body))
   auditReq(req, 'user', '도메인 수정', d?.serviceEndpoint || d?.primary || req.params.id, 'Updated')
   res.json({ ok: true, domain: d })
 })
