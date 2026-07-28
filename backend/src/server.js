@@ -309,6 +309,7 @@ function cleanDomain(d) {
   s = s.split('/')[0].split('?')[0].split('#')[0] // path/query/fragment
   s = s.replace(/:\d+$/, '')                   // :port
   s = s.replace(/\.$/, '')                     // trailing dot
+  s = s.replace(/^www\./, '')                  // www 정규화 — SSC 스코어카드는 apex 도메인 기준(www.posco.co.kr → posco.co.kr)
   return s
 }
 
