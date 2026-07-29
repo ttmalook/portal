@@ -40,7 +40,7 @@ import {
 } from '../components/common.jsx'
 import { getScore, useScore } from '../lib/sscScore.js'
 import { getIssueTypeSummary, primeIssueTypeSummary } from '../lib/sscFindings.js'
-import { fetchSharedPack, exportReportHtml, newShareFields, fetchUsers, apiCreateUser, apiSetUserRole, apiUpdateUser, apiResetUserPassword, sscTokenStatus, sscTokenSet, sscTokenClear, fetchAudit } from '../lib/portalApi.js'
+import { exportReportHtml, fetchUsers, apiCreateUser, apiSetUserRole, apiUpdateUser, apiResetUserPassword, sscTokenStatus, sscTokenSet, sscTokenClear, fetchAudit } from '../lib/portalApi.js'
 import { loadInterpretation, cachedInterpretation } from '../lib/interpret.js'
 import { catalogNameKo, factorNameKo, catalogEntry, canonicalIssueKey, catalogGroups, KO_SEVERITY } from '../data/sandboxCatalog.js'
 import { getRemediationGuide, GUIDE_ISSUE_TYPES, guideRowMeta } from '../data/remediationSteps.js'
@@ -1723,37 +1723,7 @@ export function EvidencePacks({ app }) {
   )
 }
 
-// 게시(공개) 뷰 — 사이드바 없는 고객 전달 전용 증적 화면 (#share=<token>)
-// 무인증 공개 라우트(/api/public/shared/:token)만 호출 → 로그인 도입 후에도 열림
-export function SharedPackView({ token }) {
-  const [pack, setPack] = useState(undefined) // undefined=로딩, null=없음
-  useEffect(() => {
-    let alive = true
-    fetchSharedPack(token)
-      .then((p) => { if (alive) setPack(p || null) })
-      .catch(() => { if (alive) setPack(null) })
-    return () => { alive = false }
-  }, [token])
-
-  if (pack === undefined) return <div className="shared-pack"><div className="rf-skeleton">불러오는 중…</div></div>
-  if (!pack) return <div className="shared-pack"><EmptyState title="증적을 찾을 수 없습니다" desc="링크가 만료되었거나 잘못된 주소입니다." /></div>
-
-  return (
-    <div className="shared-pack">
-      <header className="shared-head">
-        <div className="shared-brand"><span className="brand-logo">SS</span> SecurityScorecard 파트너 증적</div>
-        <button className="btn btn-secondary" onClick={() => window.print()}>PDF 저장</button>
-      </header>
-      <div className="shared-body">
-        <h1 className="shared-title">{pack.title}</h1>
-        <p className="shared-sub">{pack.customer} · {pack.domain} · 발행일 {pack.created}</p>
-        {pack.source === 'lab'
-          ? <LabEvidenceStepsBody pack={pack} />
-          : <GuideSteps detail={guideRowMeta(pack.issueType)} />}
-      </div>
-    </div>
-  )
-}
+// (제거됨) SharedPackView / #share= 공개 게시 뷰 — 개별 팩 링크 폐지, 통합 리포트(선택적 암호 보호)로 대체.
 
 // 고객 전달 드릴인용 — 검증랩과 동일한 5단계 증적 스테퍼(개요→조치 방법→조치 전/후→관측값·확인→마무리).
 // 팩의 labRunId로 실제 랩 런을 불러와 before/after 캡처를 그대로 노출한다.
@@ -1861,19 +1831,10 @@ export function DeliveryReportViewer({ custName, app }) {
   const today = new Date().toISOString().slice(0, 10)
   // 전달 시점 재촬영은 제거됨 — 정적 랩 타깃 재촬영은 그림이 동일해 무의미.
   //  대표 증적은 검증랩 화면에서 지정하며, 여기서는 팩이 가리키는 대표 런을 그대로 사용한다.
-  // 이 고객사에 전달될(제외 안 된) 증적 팩 전체 — 팩별 고객 게시 링크 발급/복사용.
-  const deliverPacks = (app?.evidencePacks || []).filter((p) => p.excluded !== true
-    && (hostOfDom(p.sscLookupDomain || p.domain) === hostOfDom(scoreDomain) || p.customer === custName))
-  const copyShareLink = (pack) => {
-    let t = pack.shareToken
-    if (!t) { const f = newShareFields(); t = f.shareToken; app?.updateEvidencePack?.(pack.id, { ...f, publish: 'Published' }) }
-    const url = `${location.origin}${location.pathname}#share=${t}`
-    const done = () => setToast({ tone: 'success', text: '클립보드에 복사됨 — 고객 게시 링크(30일 유효, 로그인 없이 이 팩만 열람)' })
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(() => setToast({ tone: 'warning', text: `복사 실패 — 링크: ${url}` }))
-    else done()
-  }
   // 리포트 HTML 내보내기 — 백엔드가 자립형 단일 HTML(등급·조치 우선순위·항목별 증적/가이드, 폰트·이미지 임베드)을
   //  생성해 다운로드. 이 파일 하나를 고객에게 전달(오프라인·로그인 불필요).
+  //  열람 암호(선택, 3자 이상) 입력 시 백엔드가 리포트 전체를 AES-GCM 암호화 → 확산 방지.
+  const [pw, setPw] = useState('')
   const [exporting, setExporting] = useState(false)
   const exportReport = async () => {
     setExporting(true)
@@ -1907,12 +1868,14 @@ export function DeliveryReportViewer({ custName, app }) {
           compliance: comp ? { areas: comp.areas || [], frameworks: (comp.frameworks || []).map((f) => ({ name: f.name, clause: f.clause })) } : null
         }
       }
-      const { blob, filename } = await exportReportHtml(custName, names, extras)
+      const { blob, filename } = await exportReportHtml(custName, names, extras, pw)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a'); a.href = url; a.download = filename
       document.body.appendChild(a); a.click(); a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 4000)
-      setToast({ tone: 'success', text: '리포트 HTML을 저장했습니다 — 이 파일 하나를 고객에게 전달하세요.' })
+      setToast({ tone: 'success', text: (pw.trim().length >= 3)
+        ? '암호로 보호된 리포트를 저장했습니다 — 파일과 암호는 다른 경로로 전달하세요.'
+        : '리포트 HTML을 저장했습니다 — 이 파일 하나를 고객에게 전달하세요.' })
     } catch { setToast({ tone: 'warning', text: '리포트 생성에 실패했습니다(백엔드 상태 확인).' }) }
     finally { setExporting(false) }
   }
@@ -2006,32 +1969,18 @@ export function DeliveryReportViewer({ custName, app }) {
           </div>
           <div className="card" style={{ marginBottom: 12 }}>
             <SectionTitle title="전달 방법" desc="자립형 리포트 HTML 파일 1개로 전체 리포트를 전달하는 것을 권장합니다." />
+            {app?.can?.('evidence') && (
+              <label className="field" style={{ display: 'block', margin: '4px 0 12px', maxWidth: 380 }}>
+                <span className="field-label">열람 암호 (선택)</span>
+                <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="3자 이상 입력 시 암호 보호 · 미입력 시 암호 없음" autoComplete="off" />
+              </label>
+            )}
             <div className="report-deliver-actions">
-              {app?.can?.('evidence') && <button className="btn btn-primary" onClick={exportReport} disabled={exporting}>{exporting ? '리포트 생성 중…' : '리포트 HTML 내보내기'}</button>}
+              {app?.can?.('evidence') && <button className="btn btn-primary" onClick={exportReport} disabled={exporting}>{exporting ? '리포트 생성 중…' : (pw.trim().length >= 3 ? '암호 보호 리포트 내보내기' : '리포트 HTML 내보내기')}</button>}
               <a className="btn btn-secondary" href={buildMailto()} style={{ textDecoration: 'none' }} title={contactEmail ? `받는사람: ${contactEmail}` : '받는사람 직접 입력'}>이메일로 전달</a>
             </div>
-            <p className="hint-text"><b>리포트 HTML 내보내기</b>: 이 고객사의 전체 리포트(등급·조치 우선순위·항목 클릭 시 조치/증적)를 폰트·이미지까지 임베드한 <b>단일 HTML 파일</b>로 저장합니다. 서버·로그인 없이 열리며, 이 파일 하나를 <b>이메일로 전달</b>에 첨부해 발송하세요(앱이 직접 발송하지 않음).</p>
+            <p className="hint-text"><b>리포트 HTML 내보내기</b>: 이 고객사의 전체 리포트(등급·조치 우선순위·항목 클릭 시 조치/증적)를 폰트·이미지까지 임베드한 <b>단일 HTML 파일</b>로 저장합니다. 서버·로그인 없이 열립니다. <b>열람 암호</b>를 넣으면 파일 전체가 암호화되어(AES-GCM) 유출돼도 암호 없이는 열람 불가합니다 — 암호는 파일과 <b>다른 경로로</b> 전달하세요.</p>
           </div>
-          {app?.can?.('evidence') && (
-            <div className="card">
-              <SectionTitle title="개별 팩 링크 (선택)" desc="특정 증적 1건만 콕 집어 공유할 때 사용합니다. 일반 전달은 위의 통합 리포트 링크를 쓰세요. 30일간 유효." />
-              {deliverPacks.length
-                ? (
-                  <div className="pack-link-list">
-                    {deliverPacks.map((p) => (
-                      <div key={p.id} className="pack-link-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderTop: '1px solid var(--border,#eee)' }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</div>
-                          <div className="hint-text" style={{ margin: 0 }}>{p.shareToken ? '링크 발급됨 · 다시 복사' : '아직 미발급 · 클릭 시 발급·복사'}</div>
-                        </div>
-                        <SecondaryButton onClick={() => copyShareLink(p)}>링크 복사</SecondaryButton>
-                      </div>
-                    ))}
-                  </div>
-                )
-                : <p className="hint-text" style={{ margin: 0 }}>이 고객사의 전달 대상 증적 팩이 없습니다. <b>증적 팩</b> 화면에서 담으세요.</p>}
-            </div>
-          )}
         </div>
 
         <div className="report-nav cv-noprint">

@@ -17,7 +17,6 @@ import {
 } from '../lib/sscApi.js'
 import { PrimaryButton, SecondaryButton, Field, NoticeBox, SeverityBadge, SourceBadge, EmptyState, DataTable, StatusBadge, Drawer } from '../components/common.jsx'
 import { ENABLE_DEV_MOCKS } from '../config/runtime.js'
-import { newShareFields } from '../lib/portalApi.js'
 import { primeIssueTypeSummary } from '../lib/sscFindings.js'
 import { prewarmInterpretations, loadRemediationInterpretation, cachedRemediation } from '../lib/interpret.js'
 import { catalogEntry, catalogNameKo, factorNameKo, remediationKo, factorRemediationKo } from '../data/sandboxCatalog.js'
@@ -174,7 +173,6 @@ export function RiskFindingsRealPanel({ presetDomain = null, context = null, onF
       review: '검수 중',
       publish: '초안',
       customerViewed: '미열람',
-      ...newShareFields(),
       score: summary?.score ?? null,
       grade: summary?.grade ?? null,
       totalGain,
@@ -426,7 +424,6 @@ function TypeRemediationDrawer({ item, findings = [], context, app, onClose }) {
       review: '검수 중',
       publish: '초안',
       customerViewed: '미열람',
-      ...newShareFields(),
       category: factorNameKo(item.factor),
       sandboxSupported: supported,
       risk: { issue_type: item.issue_type, factor: item.factor, severity: item.severity, score_impact: item.score_impact, count: item.count },

@@ -27,18 +27,17 @@ export const fetchEvidencePacks = () => call('/api/portal/evidence-packs').then(
 export const apiAddEvidencePack = (p) => call('/api/portal/evidence-packs', jsonOpts('POST', p)).then((d) => d.evidencePack)
 export const apiUpdateEvidencePack = (id, patch) => call(`/api/portal/evidence-packs/${encodeURIComponent(id)}`, jsonOpts('PUT', patch)).then((d) => d.evidencePack)
 export const apiDeleteEvidencePack = (id) => call(`/api/portal/evidence-packs/${encodeURIComponent(id)}`, jsonOpts('DELETE'))
-// 공개(무인증) 게시 팩 조회 — 발행된 팩만 토큰으로 반환
-export const fetchSharedPack = (token) => call(`/api/public/shared/${encodeURIComponent(token)}`).then((d) => d.pack)
 
 // 리포트 HTML 내보내기(인증) — 자립형 단일 HTML 파일을 blob 으로 받아 다운로드.
 //  names: issue_type→한글명(백엔드 이미지엔 프론트 카탈로그가 없어 프론트가 전달).
-export async function exportReportHtml(customer, names = {}, extras = {}) {
+//  password(선택, 3자 이상): 제공 시 백엔드가 리포트 전체를 AES-GCM 암호화(열람 시 암호 입력).
+export async function exportReportHtml(customer, names = {}, extras = {}, password = '') {
   const base = import.meta.env.VITE_BACKEND_URL || ''
   const t = getAccessToken()
   const resp = await fetch(`${base}/api/portal/report-export`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
-    body: JSON.stringify({ customer, names, extras })
+    body: JSON.stringify({ customer, names, extras, ...(String(password || '').trim().length >= 3 ? { password: String(password).trim() } : {}) })
   })
   if (!resp.ok) throw new Error(`export failed (HTTP ${resp.status})`)
   const blob = await resp.blob()
@@ -78,9 +77,3 @@ export const apiUpdateUser = (id, patch) => call(`/api/auth/users/${encodeURICom
 export const sscTokenStatus = () => call('/api/settings/ssc-token').then((d) => d.status)
 export const sscTokenSet = (token) => call('/api/settings/ssc-token', jsonOpts('PUT', { token })).then((d) => d.status)
 export const sscTokenClear = () => call('/api/settings/ssc-token', jsonOpts('DELETE')).then((d) => d.status)
-// 추측 불가 공유 토큰 생성 (게시 링크용)
-export const genShareToken = () => (globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`)
-// 게시 링크 만료 시각 (기본 30일)
-export const shareExpiryFromNow = (days = 30) => new Date(Date.now() + days * 86400000).toISOString()
-// 게시 토큰+만료 한 번에
-export const newShareFields = () => ({ shareToken: genShareToken(), shareExpiresAt: shareExpiryFromNow() })

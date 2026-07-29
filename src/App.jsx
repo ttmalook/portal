@@ -39,7 +39,6 @@ import {
   CustomerView,
   DeliveryReportViewer,
   AuditLog,
-  SharedPackView,
   UsersAdmin
 } from './pages/Pages.jsx'
 import { LabStudio } from './pages/LabStudio.jsx'
@@ -77,12 +76,6 @@ const PAGE_META = {
 }
 
 export default function App() {
-  // 게시 링크(#share=<packId>) — 사이드바 없는 고객 전달 전용 뷰
-  const [shareId] = useState(() => {
-    if (typeof window === 'undefined') return null
-    const m = /[#&?]share=([^&]+)/.exec(window.location.hash + window.location.search)
-    return m ? decodeURIComponent(m[1]) : null
-  })
   // 새창 리포트 뷰어(#report=<고객사>) — 사이드바 없는 전달 리포트 뷰어(인증 필요)
   const [reportKey] = useState(() => {
     if (typeof window === 'undefined') return null
@@ -124,15 +117,14 @@ export default function App() {
       .catch(() => setPersistMode('local'))
   }, [])
 
-  // 마운트: 공개 링크(#share)가 아니면 세션 복원(무음 refresh) 시도
+  // 마운트: 세션 복원(무음 refresh) 시도
   useEffect(() => {
-    if (shareId) return // 공개 뷰는 인증 불필요
     let alive = true
     refreshSession()
       .then((u) => { if (!alive) return; setUser(u); setAuthStatus('authed'); loadData() })
       .catch(() => { if (alive) setAuthStatus('anon') })
     return () => { alive = false }
-  }, [shareId, loadData])
+  }, [loadData])
 
   const onLogin = useCallback((u) => { setUser(u); setAuthStatus('authed'); loadData() }, [loadData])
   const doLogout = useCallback(async () => { await authLogout(); setUser(null); setAuthStatus('anon') }, [])
@@ -269,8 +261,6 @@ export default function App() {
     return acc
   }, {})
 
-  // 공개 링크로 접근 시: 포털 셸 없이 증적만 렌더 (인증 우회)
-  if (shareId) return <SharedPackView token={shareId} />
   // 인증 게이트
   if (authStatus === 'checking') return <div className="auth-splash">세션 확인 중…</div>
   if (authStatus === 'anon') return <LoginView onSuccess={onLogin} />

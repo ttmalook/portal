@@ -30,7 +30,7 @@ import { loadSscTokenOverride, setSscToken, clearSscToken, sscTokenStatus, loadC
 import { loadActiveRecipes, listRecipes, getRecipeById, addCandidate, setStaging, clearStaging, recordGate, adoptRecipe, deleteRecipe, activeRecipeIssueTypes } from './labRecipes.js'
 import { getIssueTypeCatalog } from './securityScorecardIssueCollector.js'
 import { buildCoverage } from './labCoverage.js'
-import { buildReportHtml } from './reportHtml.js'
+import { buildReportHtml, wrapEncrypted } from './reportHtml.js'
 import { GUIDES, guideKey } from './remediationGuides.js'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -600,8 +600,6 @@ const auditReq = (req, kind, action, target, result) => recordAudit({ kind, acto
 // 증적 팩 수정 액션명 — 패치 키로 의미화(전달 포함/제외 등)
 const evidenceAction = (patch) => {
   if (patch && 'excluded' in patch) return patch.excluded ? '증적 전달에서 제외' : '증적 고객 전달 포함'
-  if (patch && patch.shareToken === null) return '증적 게시 링크 폐기'
-  if (patch && patch.shareToken) return '증적 게시 링크 발급'
   return '증적 팩 수정'
 }
 
@@ -811,21 +809,7 @@ app.delete('/api/portal/evidence-packs/:id', requirePerm('evidence', 'write'), a
   res.json({ ok: true })
 })
 
-// 공개(무인증) 게시 라우트 — 발행된 팩 1건만 토큰으로 제공.
-// 로그인 도입 시 인증 미들웨어는 /api/portal/* 에만 적용하고 /api/public/* 는 열어둔다.
-app.get('/api/public/shared/:token', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
-  const token = req.params.token
-  if (!token) return res.status(400).json({ ok: false, message: 'token required' })
-  const packs = await portal.getEvidencePacks()
-  // 공유 토큰(30일 만료·추측불가)이 곧 열람 권한. 전달에서 제외된 팩은 차단.
-  const pack = (packs || []).find((p) => p.shareToken === token && p.excluded !== true)
-  if (!pack) return res.status(404).json({ ok: false, message: 'shared pack not found' })
-  // 만료 링크 차단 (폐기·기간 만료)
-  if (pack.shareExpiresAt && Date.now() > Date.parse(pack.shareExpiresAt)) return res.status(410).json({ ok: false, errorCode: 'LINK_EXPIRED', message: '만료된 링크입니다.' })
-  // 조회 = 고객 열람으로 간주 (공개 뷰는 별도 write 불필요)
-  if (pack.customerViewed !== '열람') portal.updateEvidencePack(pack.id, { customerViewed: '열람' }).catch(() => {})
-  res.json({ ok: true, pack })
-})
+// (제거됨) 개별 팩 공개 게시 링크(GET /api/public/shared/:token) — 통합 "리포트 HTML 내보내기"(선택적 암호 보호)로 대체.
 
 const hostOfDom = (s) => String(s || '').replace(/^https?:\/\//, '').split('/')[0].split(':')[0].toLowerCase()
 const canonType = (k) => String(k || '').toLowerCase().replace(/_v\d+$/, '')
@@ -925,11 +909,17 @@ app.post('/api/portal/report-export', async (req, res) => {
       category: ex.category || byKey[key]?.factor || t.factor || null, apply, overview, configDiff: ex.configDiff || null, example: ex.example || null,
       guide: { direction: g.direction || null, steps: (g.steps && g.steps.length ? g.steps : ex.steps) || null, sscRec: t.ssc_recommendation, sscDesc: t.ssc_description } }
   }))
-  const html = buildReportHtml({ customer, domain: scoreDomain, shownDomain, score, grade, generatedAt: new Date().toISOString().slice(0, 10), fontDataUri: fontDataUri(), items, factors, dist })
-  const fname = `SSC_리포트_${customer}_${new Date().toISOString().slice(0, 10)}.html`
+  let html = buildReportHtml({ customer, domain: scoreDomain, shownDomain, score, grade, generatedAt: new Date().toISOString().slice(0, 10), fontDataUri: fontDataUri(), items, factors, dist })
+  // 선택적 열람 암호(3자 이상) — 제공 시 전체 리포트를 AES-GCM 암호화해 확산 방지.
+  //  암호화 시 파일명에서 고객사명 제거(파일명 노출 방지).
+  const password = String(req.body?.password || '').trim()
+  const today = new Date().toISOString().slice(0, 10)
+  const encrypted = password.length >= 3
+  if (encrypted) html = wrapEncrypted(html, password)
+  const fname = encrypted ? `SSC_보안리포트_${today}(암호보호).html` : `SSC_리포트_${customer}_${today}.html`
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`)
-  auditReq(req, 'user', '리포트 HTML 내보내기', customer, 'Exported')
+  auditReq(req, 'user', encrypted ? '리포트 HTML 내보내기(암호 보호)' : '리포트 HTML 내보내기', customer, 'Exported')
   res.send(html)
 })
 

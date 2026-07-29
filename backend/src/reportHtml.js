@@ -1,6 +1,7 @@
 // 자립형(자산 임베드) 단일 HTML 리포트 생성기.
 //  입력 데이터만으로 완전한 HTML 문자열을 만든다(백엔드 의존성 없음 · 순수 함수).
 //  표지(등급 + 조치 우선순위 표) → 유형 클릭 시 해당 조치/증적 단일 뷰. 폰트·이미지는 라우트에서 data URI로 주입.
+import crypto from 'node:crypto'
 
 const esc = (s) => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -495,4 +496,55 @@ table.diff tr.changed{background:#fafcff}
 </script>
 </body>
 </html>`
+}
+
+// 선택적 열람 암호 보호 — 리포트 전체(HTML 문자열)를 AES-256-GCM으로 암호화하고
+//  브라우저에서 암호 입력 시 WebCrypto로 복호화·렌더하는 자립형 셸로 감싼다.
+//  키 = PBKDF2-SHA256(password, salt, 200k). 암호는 저장하지 않으며 파일엔 salt·iv·암호문만 들어간다.
+//  파일이 유출돼도 암호 없이는 내용을 볼 수 없다(확산 방지). 만료는 오프라인 파일 특성상 제공하지 않는다.
+export function wrapEncrypted(innerHtml, password) {
+  const salt = crypto.randomBytes(16)
+  const iv = crypto.randomBytes(12)
+  const key = crypto.pbkdf2Sync(String(password), salt, 200000, 32, 'sha256')
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
+  const ct = Buffer.concat([cipher.update(Buffer.from(String(innerHtml), 'utf8')), cipher.final()])
+  const tag = cipher.getAuthTag()
+  const S = salt.toString('base64'), I = iv.toString('base64'), D = Buffer.concat([ct, tag]).toString('base64')
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>보안 리스크 리포트 · 암호 보호</title>
+<style>
+  :root{color-scheme:light} *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;background:#071A2F;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
+  .lock{width:min(92vw,430px);text-align:center;padding:40px 30px}
+  .brand{color:#C9A66B;font-weight:800;letter-spacing:.14em;font-size:13px;margin-bottom:26px}
+  h1{font-size:22px;margin:0 0 8px} .sub{color:#9FB0C4;font-size:13px;margin:0 0 26px;line-height:1.65}
+  .f{display:flex;gap:8px} input{flex:1;padding:12px 14px;border-radius:9px;border:1px solid #2b3d55;background:#0E2A47;color:#fff;font-size:15px}
+  input:focus{outline:none;border-color:#C9A66B} button{padding:12px 18px;border:0;border-radius:9px;background:#C9A66B;color:#071A2F;font-weight:800;cursor:pointer;font-size:15px}
+  .err{color:#f4a3a3;font-size:13px;margin-top:14px;min-height:18px} .note{color:#6b7a8c;font-size:11px;margin-top:22px;line-height:1.6}
+</style></head>
+<body>
+<div class="lock">
+  <div class="brand">SECURITYSCORECARD &amp; PINOLIKE</div>
+  <h1>암호로 보호된 리포트</h1>
+  <p class="sub">전달받은 <b>열람 암호</b>를 입력하세요.<br/>암호는 파일과 다른 경로로 별도 전달됩니다.</p>
+  <form class="f" id="f"><input id="pw" type="password" placeholder="열람 암호" autocomplete="off" autofocus/><button type="submit">열기</button></form>
+  <div class="err" id="e"></div>
+  <div class="note">서버·로그인 없이 열립니다. 암호가 정확해야 내용이 복호화됩니다(위·변조 시에도 열리지 않음).</div>
+</div>
+<script>
+var S=${JSON.stringify(S)},I=${JSON.stringify(I)},D=${JSON.stringify(D)};
+function u8(x){var s=atob(x),a=new Uint8Array(s.length);for(var i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
+async function unlock(pw){
+  var km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+  var key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:u8(S),iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
+  var pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:u8(I)},key,u8(D));
+  return new TextDecoder().decode(pt);
+}
+document.getElementById('f').addEventListener('submit',function(ev){
+  ev.preventDefault(); var e=document.getElementById('e'); e.textContent='복호화 중…';
+  unlock(document.getElementById('pw').value).then(function(html){ document.open();document.write(html);document.close(); })
+  .catch(function(){ e.textContent='암호가 올바르지 않습니다. 다시 시도하세요.'; });
+});
+if(!(window.crypto&&window.crypto.subtle)){document.getElementById('e').textContent='이 브라우저는 복호화를 지원하지 않습니다(최신 브라우저에서 여세요).';}
+</script>
+</body></html>`
 }
