@@ -235,8 +235,8 @@ export function CustomerEditModal({ customer, onClose, onSubmit, showToast }) {
     name: customer.name,
     industry: customer.industry,
     contract: customer.status,
-    engineer: customer.engineer,
-    contact: customer.contact,
+    contactName: customer.contactName || '', // 고객담당자(등록 모달과 일관) — 기존 담당 엔지니어 셀렉트 대체
+    contact: customer.contact || '',
     note: customer.note || ''
   })
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -245,11 +245,11 @@ export function CustomerEditModal({ customer, onClose, onSubmit, showToast }) {
       name: form.name.trim() || customer.name,
       industry: form.industry,
       status: form.contract,
-      engineer: form.engineer,
+      contactName: form.contactName.trim(),
       contact: form.contact.trim(),
       note: form.note.trim()
     })
-    showToast?.(`Mock 고객 정보 수정 완료 — ${form.name.trim() || customer.name}`)
+    showToast?.(`고객 정보 수정 완료 — ${form.name.trim() || customer.name}`)
     onClose?.()
   }
   const footer = (
@@ -272,12 +272,10 @@ export function CustomerEditModal({ customer, onClose, onSubmit, showToast }) {
             {data.wizardOptions.contractStatuses.map((i) => <option key={i}>{i}</option>)}
           </select>
         </Field>
-        <Field label="담당 파트너 엔지니어">
-          <select value={form.engineer} onChange={set('engineer')}>
-            {data.wizardOptions.engineers.map((i) => <option key={i}>{i}</option>)}
-          </select>
+        <Field label="고객담당자">
+          <input value={form.contactName} onChange={set('contactName')} placeholder="예: 홍길동 (고객 측 담당자)" />
         </Field>
-        <Field label="고객 보안 담당자 이메일"><input value={form.contact} onChange={set('contact')} /></Field>
+        <Field label="고객 담당자 이메일"><input value={form.contact} onChange={set('contact')} placeholder="security@customer.example" /></Field>
         <Field label="메모"><input value={form.note} onChange={set('note')} /></Field>
       </div>
     </Modal>
