@@ -6,6 +6,27 @@ SSC 파트너 포털의 영속 계층 설계 문서. 개발자 인수인계 · �
 
 ---
 
+## 빠른 참조 — 테이블 한눈에
+
+운영 저장소(JSONB 문서 스토어) 10종. 상세 필드는 §3, 관계형 리포팅 스키마 6종은 §4.
+
+| 테이블 | 용도 | 문서 키 | 주요 필드 |
+|--------|------|---------|-----------|
+| `auth_users` | 사용자 계정·역할 | email(소문자) | name · role(admin/partner/viewer) · passwordHash(scrypt) |
+| `auth_refresh_tokens` | refresh 세션(회전·재사용 탐지) | tokenHash(SHA-256) | userId · family · expiresAt · revoked |
+| `portal_customers` | 고객사 | id `CUST-` | name(자연 키) · industry · status |
+| `portal_domains` | 점검 도메인·범위 | id `DOM-` | customer · primary(host) · allow/deny · status |
+| `portal_evidence_packs` | 증적 팩(고객 전달 단위) | id `EP-` | customer · issueType · source(lab/guide) · excluded · labRunId |
+| `lab_runs_doc` | 검증랩 재현 실행 | id `RUN-` | issueType · templateId · collector · status · evidence(JSON) |
+| `audit_log` | 감사 로그(append-only) | id `AUD-` | ts · kind(user/security/system) · actor · action · result |
+| `app_settings` | 앱 설정(암호화) | 설정 키 | ssc_api_token · claude_api_key (AES-256-GCM) |
+| `guide_interpretations` | 조치 가이드 AI 해석 캐시 | 이슈/가이드 키 | Claude 해석 결과(JSON) |
+| `lab_recipes` | AI Lab 레시피 레지스트리 | 레시피 id | issueType · verificationSemantics · status |
+
+> 모든 문서 스토어 테이블의 물리 구조는 동일하다: **`id TEXT PK · data JSONB · updated_at`**. 위 "주요 필드"는 `data` JSONB 안의 객체 필드다(§3 상세).
+
+---
+
 ## 1. 영속 구조 개요 (이원 모델)
 
 이 프로젝트는 **두 가지 영속 모델이 공존**한다. 목적이 다르므로 혼동하지 말 것.
@@ -31,6 +52,11 @@ Postgres 연결 실패 시 각 store는 `backend/data/<name>.json` 파일로 폴
 ## 2. ERD — 논리 모델 (운영 엔티티)
 
 문서 스토어에서 관계는 **자연 키(이름·호스트·id 문자열)로 논리적으로만** 연결된다(제약으로 강제되지 않음). 아래는 논리적 관계.
+
+![SSC 파트너 포털 ERD — 운영 엔티티 논리 모델](erd.png)
+
+<details>
+<summary>▸ ERD mermaid 소스 (편집·재렌더용)</summary>
 
 ```mermaid
 erDiagram
@@ -166,6 +192,8 @@ erDiagram
   }
 ```
 
+</details>
+
 > 관계는 자연 키(이름·호스트·id 문자열)로 **논리 연결**되며 DB 제약으로 강제되지 않는다. 유일한 강제 FK는 관계형 스키마의 `LAB_ARTIFACT.run_id → LAB_RUN.id`(CASCADE).
 > 위에 없는 **GUIDE_INTERPRETATION**(Claude 해석 캐시)·**LAB_RECIPE**(AI 레시피 레지스트리)는 관계 없는 독립 JSONB 테이블 — 상세는 §3.9·§3.10.
 
@@ -257,10 +285,10 @@ erDiagram
 | riskCount | int | 연결 리스크 수 |
 | created | string(date) | 생성일 |
 | excluded | boolean | 고객 전달에서 제외 여부 |
-| publish | string | `발행됨`일 때만 게시 링크 열람 허용 |
-| shareToken | string? | 고객 게시 링크 토큰(`#share=`) |
-| shareExpiresAt | string(ISO)? | 게시 링크 만료(기본 30일) |
-| customerViewed | string | `열람`\|`미열람` |
+| publish | string | (레거시·미사용) 팩 상태 라벨 |
+| customerViewed | string | (레거시·미사용) 개별 팩 게시 링크 폐지로 항상 `미열람` |
+
+> **개별 팩 게시 링크 폐지(옵션 B)** — `shareToken`/`shareExpiresAt` 필드와 공개 라우트(`GET /api/public/shared/:token`)를 제거했다. 고객 전달은 **통합 리포트 HTML 내보내기(선택적 AES-256-GCM 열람 암호)**로 일원화된다(§ 전달은 [ADMIN_GUIDE.md](ADMIN_GUIDE.md)).
 
 ### 3.6 `lab_runs_doc` — 검증랩 재현 실행
 문서 키 = `id`. 정의: [`lab.js`](../backend/src/lab.js) (관계형 `lab_runs`와 이름 충돌 방지 위해 `_doc` 접미).

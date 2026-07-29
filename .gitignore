@@ -22,3 +22,7 @@ docs/SSC-화면정의서.pdf
 
 # 포트폴리오: SSC API/내부 설계 작업 문서는 공개 저장소에서 제외(로컬 보관)
 docs/SSC_*.md
+
+# 포트폴리오: 실 스크린샷 포함 산출물(매뉴얼 PPT·단계 캡처)은 로컬 보관
+docs/*.pptx
+docs/screens/manual/
