@@ -75,6 +75,8 @@ flowchart LR
 
 **운영 흐름**: 고객사 등록 → 도메인/스코프 → SSC 리스크 수집 → 검증랩 조치 전·후 재현 → 증적 팩 → 고객 전달 리포트(PDF/메일) → SSC 재스캔으로 공식 해소 확인.
 
+**▶ 이어서 개발할 엔지니어는 [인수인계서 docs/HANDOVER.md](docs/HANDOVER.md)부터** — 왜 이렇게 만들었는지는 [DECISIONS](docs/DECISIONS.md), 다음 할 일은 [ROADMAP](docs/ROADMAP.md).
+
 자세한 설계는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), 전체 화면 정의는 [화면정의서](docs/SCREENS.md) 참조.
 운영 방법은 [관리자·사용자 매뉴얼](docs/ADMIN_GUIDE.md), AI Lab Builder 설계는 [랩 스튜디오](docs/LAB_STUDIO.md), 배포/장애 대응은 [deploy/RUNBOOK.md](deploy/RUNBOOK.md).
 요구사항은 [요구사항 정의서](docs/REQUIREMENTS.md), 기능 검증은 [기능 검증 결과서](docs/TEST_RESULTS.md) 참조.
